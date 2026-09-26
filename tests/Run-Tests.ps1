@@ -425,6 +425,87 @@ finally {
     if ($fs) { $fs.Close(); $fs.Dispose() }
 }
 
+# --- T11: 桌面界面（Worker 桥接层）安全性 ------------------------------------
+Write-Section 'T11 界面桥接层：只能收窄候选集，不能扩张'
+
+. (Join-Path $root 'app\Worker.ps1')
+
+$guiSandbox = Join-Path $PSScriptRoot '.gui-sandbox'
+Remove-PathSafe -Path $guiSandbox
+
+# 局部助手：New-Sandbox.ps1 里的 New-BigFile 等不会外泄到本脚本作用域
+function New-GuiTestFile {
+    param([string]$Path, [int]$KB = 8)
+    $d = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+    [System.IO.File]::WriteAllBytes($Path, (New-Object byte[] ($KB * 1024)))
+}
+
+$gTemp = Join-Path $guiSandbox 'Temp'
+$gNpm = Join-Path $guiSandbox 'cache\npm-cache'
+$gDocs = Join-Path $guiSandbox 'Users\tester\Documents'
+New-GuiTestFile -Path (Join-Path $gTemp 'junk.tmp') -KB 24
+New-GuiTestFile -Path (Join-Path $gNpm '_cacache\blob') -KB 48
+New-GuiTestFile -Path (Join-Path $gDocs 'important.docx') -KB 1
+
+$gOld = (Get-Date).AddDays(-45)
+Get-ChildItem -LiteralPath $guiSandbox -Recurse -Force -File | ForEach-Object { try { $_.LastWriteTime = $gOld; $_.CreationTime = $gOld } catch { } }
+$gDirs = Get-ChildItem -LiteralPath $guiSandbox -Recurse -Force -Directory | Sort-Object { $_.FullName.Split('\').Count } -Descending
+foreach ($d in $gDirs) { try { $d.LastWriteTime = $gOld; $d.CreationTime = $gOld } catch { } }
+$gRootInfo = [System.IO.DirectoryInfo]::new($guiSandbox); $gRootInfo.LastWriteTime = $gOld; $gRootInfo.CreationTime = $gOld
+
+$gCommon = @{
+    RootPath = $guiSandbox
+    DriveLetter = 'T'
+    MaxDepth = 10
+    OutDir = $outDir
+    SkipRecycleBin = $true
+}
+
+# T11a: Worker 扫描结果应与引擎自身扫描一致
+$wScan = Invoke-CleanerAppTask @gCommon -Mode 'Scan'
+Test-Assert -Name 'T11a1 Worker 扫描成功' -Condition ($wScan.Ok) -Detail ('Ok=' + $wScan.Ok + ' err=' + $wScan.Error)
+
+$wPaths = @()
+foreach ($c in $wScan.Candidates) { $wPaths += [string]$c.Path }
+$hasTemp = $false; $hasNpm = $false; $hasDocs = $false
+foreach ($p in $wPaths) {
+    if ($p -ieq $gTemp) { $hasTemp = $true }
+    if ($p -ieq $gNpm) { $hasNpm = $true }
+    if ($p -ieq $gDocs) { $hasDocs = $true }
+}
+Test-Assert -Name 'T11a2 Worker 候选集包含白名单目标' -Condition ($hasTemp -and $hasNpm) -Detail ('temp=' + $hasTemp + ' npm=' + $hasNpm)
+Test-Assert -Name 'T11a3 Worker 候选集不含受保护诱饵（Documents）' -Condition (-not $hasDocs) -Detail 'Documents 进了候选集'
+
+# T11b: 越权路径必须被并集逻辑丢弃
+$system32 = Join-Path $env:SystemRoot 'System32'
+$only = @($gTemp, $system32, $gDocs)
+$wClean = Invoke-CleanerAppTask @gCommon -Mode 'Clean' -OnlyPaths $only -DeleteMethod 'Permanent'
+
+$wTempGone = -not (Test-Path -LiteralPath (Join-Path $gTemp 'junk.tmp'))
+$wDocsAlive = Test-Path -LiteralPath (Join-Path $gDocs 'important.docx')
+$wSystemAlive = Test-Path -LiteralPath $system32
+
+Test-Assert -Name 'T11b1 界面传入的越权路径被并集逻辑丢弃（请求 3 项、实际命中 1 项）' `
+    -Condition ($wClean.RequestedCount -eq 3 -and $wClean.MatchedCount -eq 1) `
+    -Detail ('requested=' + $wClean.RequestedCount + ' matched=' + $wClean.MatchedCount)
+Test-Assert -Name 'T11b2 白名单目标确实被删掉了（工具不是空转）' -Condition $wTempGone -Detail 'Temp 未被清理'
+Test-Assert -Name 'T11b3 界面无法借越权路径删到系统目录' -Condition $wSystemAlive -Detail 'System32 受影响'
+Test-Assert -Name 'T11b4 界面无法借越权路径删到受保护诱饵' -Condition $wDocsAlive -Detail 'Documents 被删了'
+
+# T11c: Worker 仍会产出报告
+Test-Assert -Name 'T11c Worker 产出了 HTML 报告' `
+    -Condition ($wClean.HtmlReport -and (Test-Path -LiteralPath $wClean.HtmlReport)) `
+    -Detail ('HtmlReport=' + $wClean.HtmlReport)
+
+# T11d: 只传受保护路径时应当一项都命中不了
+$wClean2 = Invoke-CleanerAppTask @gCommon -Mode 'Clean' -OnlyPaths @($gDocs, $system32) -DeleteMethod 'Permanent'
+Test-Assert -Name 'T11d 只传受保护路径时命中 0 项且诱饵完好' `
+    -Condition ($wClean2.MatchedCount -eq 0 -and (Test-Path -LiteralPath (Join-Path $gDocs 'important.docx'))) `
+    -Detail ('matched=' + $wClean2.MatchedCount)
+
+Remove-PathSafe -Path $guiSandbox
+
 # --- 报告 -------------------------------------------------------------------
 Write-Section 'T9 报告产物'
 

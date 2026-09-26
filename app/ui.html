@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SafeDriveCleaner · 磁盘安全清理</title>
+<style>
+/* ==========================================================================
+   SafeDriveCleaner · 交互界面
+   单文件、零依赖、纯前端演示。数据为模拟数据，不会触碰本机任何文件。
+   配色沿用桌面版 app/SafeDriveCleaner.App.ps1 的浅色专业调色板。
+   ========================================================================== */
+
+:root{
+  --bg:#F5F6F8;
+  --panel:#FFFFFF;
+  --sub:#FAFBFC;
+  --border:#E5E8ED;
+  --border-2:#D8DDE4;
+  --text:#1F2328;
+  --text-2:#454C55;
+  --muted:#6B7280;
+  --faint:#98A0AB;
+
+  --accent:#2563EB;
+  --accent-hv:#1D4ED8;
+  --accent-soft:#EEF3FF;
+  --accent-ring:rgba(37,99,235,.18);
+
+  --ok:#047857;
+  --ok-soft:#ECFDF4;
+  --warn:#B45309;
+  --warn-soft:#FFF8ED;
+  --danger:#B91C1C;
+  --danger-soft:#FEF3F2;
+
+  --sh-1:0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.05);
+  --sh-2:0 4px 14px rgba(16,24,40,.07), 0 1px 3px rgba(16,24,40,.04);
+  --sh-3:0 28px 56px -16px rgba(16,24,40,.22);
+
+  --r-s:6px; --r:10px; --r-l:14px;
+  --side:238px;
+  --ease:cubic-bezier(.16,1,.3,1);
+
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,"SF Mono",Menlo,monospace;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Segoe UI Variable Text","Microsoft YaHei UI","PingFang SC","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+  font-size:13.5px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select{font:inherit;color:inherit}
+::selection{background:var(--accent-ring)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ---------------------------------------------------------------- 应用外壳 */
+.app{display:grid;grid-template-columns:var(--side) 1fr;height:100vh;height:100dvh;overflow:hidden}
+
+/* -------- 侧边栏 -------- */
+.sidebar{
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  min-height:0;
+}
+.brand{padding:18px 18px 14px;display:flex;gap:11px;align-items:center}
+.brand-mark{
+  width:34px;height:34px;border-radius:9px;flex:none;
+  background:linear-gradient(150deg,#2E6BF0,#1746B8);
+  display:grid;place-items:center;color:#fff;
+  box-shadow:0 3px 10px rgba(37,99,235,.3);
+}
+.brand-txt{min-width:0}
+.brand-name{font-size:14.5px;font-weight:650;letter-spacing:-.015em;white-space:nowrap}
+.brand-ver{font-size:11px;color:var(--faint);letter-spacing:.02em;white-space:nowrap}
+
+.nav{padding:6px 10px;display:flex;flex-direction:column;gap:1px;overflow-y:auto;min-height:0;flex:1}
+.nav-label{font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.09em;text-transform:uppercase;padding:12px 8px 6px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:var(--r-s);
+  color:var(--text-2);font-size:13px;font-weight:500;
+  transition:background .16s,color .16s;
+  text-align:left;width:100%;
+}
+.nav-item svg{flex:none;opacity:.72;transition:opacity .16s}
+.nav-item:hover{background:var(--sub);color:var(--text)}
+.nav-item.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav-item.on svg{opacity:1}
+.nav-item .badge{
+  margin-left:auto;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;
+  background:var(--sub);color:var(--muted);border:1px solid var(--border);
+  padding:0 6px;border-radius:99px;line-height:17px;min-width:22px;text-align:center;
+}
+.nav-item.on .badge{background:#fff;color:var(--accent);border-color:#CFDDFB}
+
+/* 侧栏底部：磁盘用量 */
+.side-foot{padding:12px 16px 16px;border-top:1px solid var(--border)}
+.drive-row{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--muted)}
+.drive-row b{color:var(--text);font-size:12.5px;font-weight:650}
+.drive-bar{height:5px;border-radius:99px;background:#EBEEF2;overflow:hidden;margin:7px 0 6px}
+.drive-bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#3B82F6,#2563EB);transition:width .9s var(--ease)}
+.drive-bar i.warn{background:linear-gradient(90deg,#F59E0B,#D97706)}
+
+/* -------- 主区 -------- */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+
+/* 顶栏 */
+.topbar{
+  height:62px;flex:none;background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:16px;padding:0 22px;
+}
+.tb-title{min-width:0}
+.tb-title h1{margin:0;font-size:16px;font-weight:650;letter-spacing:-.02em}
+.tb-title p{margin:1px 0 0;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-spacer{flex:1}
+.tb-group{display:flex;align-items:center;gap:8px}
+.fl{font-size:11.5px;color:var(--muted);white-space:nowrap}
+
+.field{
+  height:32px;border:1px solid var(--border-2);border-radius:var(--r-s);
+  background:var(--panel);padding:0 9px;font-size:12.5px;color:var(--text);
+  transition:border-color .15s,box-shadow .15s;
+}
+.field:hover{border-color:#C3CAD3}
+.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring);outline:none}
+select.field{padding-right:26px;appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 8px center;cursor:pointer}
+.field:disabled{background:var(--sub);color:var(--faint);cursor:not-allowed}
+
+.btn{
+  height:32px;border-radius:var(--r-s);padding:0 13px;
+  display:inline-flex;align-items:center;gap:6px;justify-content:center;
+  font-size:12.5px;font-weight:600;white-space:nowrap;
+  transition:background .16s,border-color .16s,color .16s,transform .1s,box-shadow .16s;
+}
+.btn:active:not(:disabled){transform:scale(.975)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.35)}
+.btn-primary:hover:not(:disabled){background:var(--accent-hv)}
+.btn-ghost{background:var(--panel);color:var(--text-2);border:1px solid var(--border-2)}
+.btn-ghost:hover:not(:disabled){background:var(--sub);color:var(--text);border-color:#C3CAD3}
+.btn-danger{background:var(--danger);color:#fff;box-shadow:0 1px 2px rgba(185,28,28,.32)}
+.btn-danger:hover:not(:disabled){background:#991B1B}
+.btn-danger-ghost{background:#fff;color:var(--danger);border:1px solid #F3C9C6}
+.btn-danger-ghost:hover:not(:disabled){background:var(--danger-soft)}
+.btn-sm{height:26px;padding:0 9px;font-size:12px;font-weight:550}
+
+/* 统计卡 */
+.stats{
+  flex:none;display:grid;grid-template-columns:repeat(5,1fr);gap:12px;
+  padding:16px 22px 4px;
+}
+.stat{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 14px 13px;box-shadow:var(--sh-1);position:relative;overflow:hidden;
+}
+.stat::after{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--stripe-c,transparent)}
+.stat.s-total{--stripe-c:#2563EB}
+.stat.s-cand{--stripe-c:#0EA5E9}
+.stat.s-prot{--stripe-c:#047857}
+.stat.s-idx{--stripe-c:#7C3AED}
+.stat.s-skip{--stripe-c:#B45309}
+.stat-k{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.stat-v{font-size:21px;font-weight:660;letter-spacing:-.025em;margin-top:5px;line-height:1.15;font-variant-numeric:tabular-nums}
+.stat-s{font-size:11px;color:var(--faint);margin-top:2px;font-variant-numeric:tabular-nums}
+
+/* 内容区 */
+.content{flex:1;min-height:0;overflow-y:auto;padding:14px 22px 22px;scroll-behavior:smooth}
+.view{display:none;animation:viewIn .34s var(--ease) both}
+.view.on{display:block}
+@keyframes viewIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+.card{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--r-l);
+  box-shadow:var(--sh-1);
+}
+.card + .card{margin-top:14px}
+.card-hd{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+}
+.card-hd h2{margin:0;font-size:13.5px;font-weight:640;letter-spacing:-.01em}
+.card-hd .sub{font-size:11.5px;color:var(--muted)}
+.card-hd .grow{flex:1}
+.card-bd{padding:6px 0}
+.card-pad{padding:18px}
+
+/* 工具条（候选清单） */
+.filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--sub)}
+.chip{
+  height:27px;padding:0 11px;border-radius:99px;font-size:12px;font-weight:550;
+  border:1px solid var(--border-2);background:var(--panel);color:var(--text-2);
+  display:inline-flex;align-items:center;gap:6px;transition:all .15s;
+}
+.chip:hover{border-color:#C3CAD3;color:var(--text)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip .c{font-size:10.5px;opacity:.75;font-variant-numeric:tabular-nums}
+.chip.on .c{opacity:.9}
+
+/* 表格 */
+.tbl-wrap{overflow-x:auto}
+table.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl thead th{
+  position:sticky;top:0;z-index:1;
+  background:var(--sub);border-bottom:1px solid var(--border);
+  font-size:11px;font-weight:620;color:var(--muted);letter-spacing:.03em;
+  text-align:left;padding:8px 12px;white-space:nowrap;
+}
+.tbl thead th.r{text-align:right}
+.tbl tbody td{padding:0 12px;height:40px;border-bottom:1px solid #F1F3F6;vertical-align:middle}
+.tbl tbody tr{transition:background .13s}
+.tbl tbody tr:hover{background:#F8FAFD}
+.tbl tbody tr.sel{background:var(--accent-soft)}
+.tbl tbody tr.sel:hover{background:#E7EFFF}
+.tbl tbody tr.done{opacity:.46}
+.tbl tbody tr.done .pth{text-decoration:line-through;text-decoration-color:#B6BCC5}
+.tbl tbody tr{animation:rowIn .36s var(--ease) both;animation-delay:calc(var(--i,0) * 20ms)}
+@keyframes rowIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.tbl tbody tr.out{animation:rowOut .3s var(--ease) both}
+@keyframes rowOut{to{opacity:0;transform:translateX(14px)}}
+
+.tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
+.pth{
+  font-family:var(--mono);font-size:11.5px;color:var(--text);
+  max-width:1px;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.pth b{font-weight:600}
+.pth i{color:var(--faint);font-style:normal}
+
+/* 勾选框 */
+.cb{
+  appearance:none;width:15px;height:15px;border-radius:4px;flex:none;
+  border:1.5px solid #C3CAD3;background:#fff;cursor:pointer;position:relative;
+  transition:background .14s,border-color .14s;display:block;
+}
+.cb:hover{border-color:var(--accent)}
+.cb:checked{background:var(--accent);border-color:var(--accent)}
+.cb:checked::after{
+  content:"";position:absolute;left:4.2px;top:1.2px;width:4px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg);
+}
+.cb:indeterminate{background:var(--accent);border-color:var(--accent)}
+.cb:indeterminate::after{content:"";position:absolute;left:2.6px;top:6px;width:8px;height:2px;background:#fff;border-radius:1px}
+
+/* 分类标签 */
+.tag{
+  display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;
+  font-size:11px;font-weight:560;white-space:nowrap;
+  background:var(--sub);border:1px solid var(--border);color:var(--text-2);
+}
+.tag.c1{background:#EFF3FF;border-color:#DCE4FB;color:#2B4FBF}
+.tag.c2{background:#FFF4ED;border-color:#FCE3D2;color:#9A4A0E}
+.tag.c3{background:#F0FBF5;border-color:#D5F0E1;color:#0F6B47}
+.tag.c4{background:#F5F0FE;border-color:#E4D9FB;color:#6134B8}
+.tag.c5{background:#EAF7FD;border-color:#D2EDF9;color:#0C6A93}
+.tag.c6{background:#FDF2F2;border-color:#F8DADA;color:#A32B2B}
+.tag.c7{background:#F2F4F7;border-color:#E1E5EA;color:#4B5563}
+
+/* 风险徽标 */
+.risk{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.risk i{width:6px;height:6px;border-radius:99px;display:block}
+.risk.low{color:var(--ok)} .risk.low i{background:var(--ok)}
+.risk.medium{color:var(--warn)} .risk.medium i{background:var(--warn)}
+.risk.high{color:var(--danger)} .risk.high i{background:var(--danger)}
+
+.code{
+  font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.02em;
+  padding:1px 5px;border-radius:4px;background:#F1F3F6;color:var(--text-2);border:1px solid var(--border);
+}
+.code.p{background:var(--ok-soft);color:var(--ok);border-color:#CDEBDF}
+.code.s{background:var(--warn-soft);color:var(--warn);border-color:#F6DFC4}
+
+/* 操作栏 */
+.actionbar{
+  flex:none;background:var(--panel);border-top:1px solid var(--border);
+  padding:11px 22px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  box-shadow:0 -2px 10px rgba(16,24,40,.035);
+}
+.actionbar[hidden]{display:none}
+.sel-count{font-size:13px;font-weight:640;letter-spacing:-.01em}
+.sel-count span{color:var(--accent)}
+.sel-bytes{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.switch{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);cursor:pointer;user-select:none}
+.switch input{appearance:none;width:32px;height:18px;border-radius:99px;background:#D3D8DF;position:relative;cursor:pointer;transition:background .18s;flex:none}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:99px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .18s var(--ease)}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(14px)}
+
+/* 空状态 */
+.empty{padding:58px 24px;text-align:center;color:var(--muted)}
+.empty-ic{width:52px;height:52px;border-radius:14px;background:var(--sub);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto 14px;color:var(--faint)}
+.empty h3{margin:0 0 5px;font-size:14px;font-weight:620;color:var(--text)}
+.empty p{margin:0 auto;font-size:12.5px;max-width:44ch;line-height:1.65}
+.empty .btn{margin-top:16px}
+
+/* 扫描中面板 */
+.scanning{padding:36px 30px;max-width:620px;margin:6px auto}
+.scan-title{font-size:15px;font-weight:640;letter-spacing:-.015em;display:flex;align-items:center;gap:9px}
+.pulse{width:8px;height:8px;border-radius:99px;background:var(--accent);position:relative;flex:none}
+.pulse::after{content:"";position:absolute;inset:0;border-radius:99px;background:var(--accent);animation:pulse 1.5s ease-out infinite}
+@keyframes pulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(3.6);opacity:0}}
+.scan-bar{height:4px;border-radius:99px;background:#EBEEF2;overflow:hidden;margin:16px 0 8px}
+.scan-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3B82F6,#2563EB);border-radius:99px;transition:width .38s var(--ease)}
+.scan-pct{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.phases{margin-top:20px;display:flex;flex-direction:column;gap:1px}
+.phase{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:12.5px;color:var(--faint);transition:color .2s}
+.phase-ic{width:17px;height:17px;border-radius:99px;border:1.5px solid var(--border-2);display:grid;place-items:center;flex:none;transition:all .2s}
+.phase.doing{color:var(--text);font-weight:560}
+.phase.doing .phase-ic{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.phase.done{color:var(--text-2)}
+.phase.done .phase-ic{background:var(--ok);border-color:var(--ok);color:#fff}
+.phase .meta{margin-left:auto;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+
+/* 保护拦截条目 */
+.hit{display:flex;gap:12px;padding:13px 18px;border-bottom:1px solid #F1F3F6;align-items:flex-start}
+.hit:last-child{border-bottom:0}
+.hit-ic{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center}
+.hit-ic.p{background:var(--ok-soft);color:var(--ok)}
+.hit-ic.w{background:var(--warn-soft);color:var(--warn)}
+.hit-ic.n{background:var(--accent-soft);color:var(--accent)}
+.hit-bd{min-width:0;flex:1}
+.hit-p{font-family:var(--mono);font-size:11.5px;word-break:break-all;line-height:1.5}
+.hit-r{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.hit-meta{display:flex;gap:7px;align-items:center;margin-top:6px;flex-wrap:wrap}
+
+/* 键值行 */
+.kv{display:grid;grid-template-columns:132px 1fr;gap:2px 16px;padding:14px 18px}
+.kv dt{font-size:12px;color:var(--muted);padding:6px 0}
+.kv dd{margin:0;font-size:12.5px;padding:6px 0;font-variant-numeric:tabular-nums;word-break:break-all}
+
+/* 进度条（报告） */
+.bars{display:flex;flex-direction:column;gap:11px;padding:16px 18px}
+.bar-row{display:grid;grid-template-columns:150px 1fr 92px;gap:12px;align-items:center;font-size:12.5px}
+.bar{height:7px;border-radius:99px;background:#EFF1F4;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px;background:var(--accent);width:0;transition:width .9s var(--ease)}
+.bar-am{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+
+/* 规则卡 */
+.rule-group{padding:14px 18px 4px}
+.rule-group h3{margin:0 0 9px;font-size:12px;font-weight:620;color:var(--muted);letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.rule-group h3::after{content:"";flex:1;height:1px;background:var(--border)}
+.rule{
+  display:flex;gap:13px;align-items:flex-start;padding:12px 0;border-top:1px solid #F1F3F6;
+}
+.rule:first-of-type{border-top:0}
+.rule.off{opacity:.5}
+.rule-bd{flex:1;min-width:0}
+.rule-nm{font-size:13px;font-weight:570;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rule-nt{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.55}
+.rule-tags{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;align-items:center}
+.rule-ptn{font-family:var(--mono);font-size:10.5px;color:var(--muted);background:var(--sub);border:1px solid var(--border);border-radius:4px;padding:2px 6px}
+
+/* 四道拦截 */
+.layers{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:18px}
+.layer{border:1px solid var(--border);border-radius:var(--r);padding:14px;background:var(--sub)}
+.layer-n{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.06em}
+.layer h4{margin:5px 0 6px;font-size:13px;font-weight:620}
+.layer p{margin:0;font-size:11.5px;color:var(--muted);line-height:1.6}
+.layer .mono{font-family:var(--mono);font-size:11px;color:var(--text-2);background:#fff;border:1px solid var(--border);border-radius:5px;padding:1px 5px;display:inline-block;margin-top:8px}
+
+.note{
+  display:flex;gap:11px;padding:13px 16px;border-radius:var(--r);
+  background:var(--accent-soft);border:1px solid #DCE4FB;font-size:12.5px;color:#1E3A8A;line-height:1.6;
+}
+.note.w{background:var(--warn-soft);border-color:#F6DFC4;color:#7C3A0A}
+.note.g{background:var(--ok-soft);border-color:#CDEBDF;color:#065F46}
+.note svg{flex:none;margin-top:1px}
+.note b{font-weight:650}
+
+/* 文件行 */
+.file{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #F1F3F6}
+.file:last-child{border-bottom:0}
+.file-ic{width:30px;height:30px;border-radius:8px;background:var(--sub);border:1px solid var(--border);display:grid;place-items:center;color:var(--muted);flex:none}
+.file-nm{font-size:12.5px;font-weight:560}
+.file-p{font-family:var(--mono);font-size:11px;color:var(--faint);word-break:break-all}
+
+/* 弹窗 */
+.modal-root{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-root.on{display:flex}
+.modal-bg{position:absolute;inset:0;background:rgba(16,24,40,.42);backdrop-filter:blur(3px);animation:fade .2s both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{
+  position:relative;width:100%;max-width:490px;background:var(--panel);
+  border-radius:var(--r-l);box-shadow:var(--sh-3);animation:modIn .28s var(--ease) both;
+  overflow:hidden;max-height:calc(100dvh - 40px);display:flex;flex-direction:column;
+}
+@keyframes modIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.modal-hd{padding:20px 22px 0}
+.modal-hd h3{margin:0;font-size:15.5px;font-weight:650;letter-spacing:-.015em;display:flex;align-items:center;gap:9px}
+.modal-hd h3.danger{color:var(--danger)} .modal-hd h3.warn{color:var(--warn)}
+.modal-bd{padding:14px 22px 0;overflow-y:auto}
+.modal-ft{padding:18px 22px 20px;display:flex;gap:9px;justify-content:flex-end}
+.confirm-list{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:14px}
+.confirm-list div{display:flex;justify-content:space-between;gap:14px;padding:9px 13px;font-size:12.5px;border-bottom:1px solid #F1F3F6}
+.confirm-list div:last-child{border-bottom:0}
+.confirm-list span{color:var(--muted)}
+.confirm-list b{font-weight:620;font-variant-numeric:tabular-nums;text-align:right}
+.tip{margin-top:13px;font-size:11.5px;color:var(--muted);line-height:1.6}
+.inp{
+  width:100%;height:40px;margin-top:9px;border:1px solid var(--border-2);border-radius:var(--r-s);
+  padding:0 12px;font-family:var(--mono);font-size:14px;letter-spacing:.09em;
+  transition:border-color .15s,box-shadow .15s;
+}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.inp.bad{border-color:var(--danger);box-shadow:0 0 0 3px rgba(185,28,28,.13)}
+
+/* Toast */
+.toasts{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:70;display:flex;flex-direction:column;gap:9px;align-items:center;pointer-events:none}
+.toast{
+  display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:var(--r);
+  background:#1F2328;color:#fff;font-size:12.5px;font-weight:530;
+  box-shadow:var(--sh-3);animation:toastIn .34s var(--ease) both;max-width:min(92vw,560px);
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.toast.out{animation:toastOut .3s var(--ease) both}
+@keyframes toastOut{to{opacity:0;transform:translateY(10px) scale(.97)}}
+.toast svg{flex:none}
+.toast.ok svg{color:#34D399} .toast.warn svg{color:#FBBF24} .toast.err svg{color:#F87171}
+
+/* 抖动 */
+.shake{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+
+/* 滚动条 */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#D6DBE2;border:3px solid transparent;border-radius:99px;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#C0C7D1;background-clip:content-box;border:3px solid transparent}
+::-webkit-scrollbar-track{background:transparent}
+
+/* 响应式 */
+@media (max-width:1080px){
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .layers{grid-template-columns:1fr}
+}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .sidebar{border-right:0;border-bottom:1px solid var(--border)}
+  .brand{padding:12px 16px}
+  .nav{flex-direction:row;overflow-x:auto;padding:0 10px 9px;gap:5px}
+  .nav-label{display:none}
+  .nav-item{width:auto;white-space:nowrap;padding:7px 11px}
+  .nav-item .badge{display:none}
+  .side-foot{display:none}
+  .stats{grid-template-columns:repeat(2,1fr);padding:12px 14px 2px}
+  .content{padding:12px 14px 18px}
+  .topbar{flex-wrap:wrap;height:auto;padding:11px 14px;gap:9px}
+  .tb-title p{white-space:normal}
+  .actionbar{padding:10px 14px}
+  .bar-row{grid-template-columns:110px 1fr 80px}
+  .kv{grid-template-columns:1fr}
+  .kv dt{padding-bottom:0;color:var(--faint)}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .content{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============================ 侧边栏 ============================ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+        </svg>
+      </div>
+      <div class="brand-txt">
+        <div class="brand-name">SafeDriveCleaner</div>
+        <div class="brand-ver">白名单引擎 · v1.1.0</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <div class="nav-label">工作台</div>
+      <button class="nav-item on" data-view="candidates">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span>候选清单</span><span class="badge" id="nb-cand">0</span>
+      </button>
+      <button class="nav-item" data-view="defense">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>安全防线</span><span class="badge" id="nb-defense">0</span>
+      </button>
+      <button class="nav-item" data-view="report">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        <span>清理报告</span>
+      </button>
+
+      <div class="nav-label">配置</div>
+      <button class="nav-item" data-view="rules">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="7" cy="17" r="2" fill="currentColor" stroke="none"/></svg>
+        <span>白名单规则</span><span class="badge" id="nb-rules">14</span>
+      </button>
+      <button class="nav-item" data-view="safety">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <span>安全说明</span>
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <div class="drive-row"><b id="sf-drive">D:\</b><span id="sf-free">可用 319 GB</span></div>
+      <div class="drive-bar"><i id="sf-bar" style="width:65.7%"></i></div>
+      <div class="drive-row" style="font-size:11px;color:var(--faint)"><span>已用 612 GB</span><span>931 GB</span></div>
+    </div>
+  </aside>
+
+  <!-- ============================ 主区 ============================ -->
+  <main class="main">
+
+    <header class="topbar">
+      <div class="tb-title">
+        <h1 id="tb-h1">候选清单</h1>
+        <p id="tb-sub">白名单驱动的磁盘安全清理 · 默认只读扫描 · 四道保护拦截 · 绝不跟随目录联接</p>
+      </div>
+      <div class="tb-spacer"></div>
+      <div class="tb-group">
+        <span class="fl">驱动器</span>
+        <select class="field" id="drive" style="width:74px">
+          <option>D</option><option>C</option><option>E</option>
+        </select>
+        <span class="fl">深度</span>
+        <select class="field" id="depth" style="width:64px">
+          <option>6</option><option selected>10</option><option>14</option><option>20</option>
+        </select>
+      </div>
+      <div class="tb-group">
+        <button class="btn btn-ghost" id="btn-report">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
+          报告
+        </button>
+        <button class="btn btn-primary" id="btn-scan">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          <span id="scan-label">开始扫描</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 统计卡 -->
+    <section class="stats">
+      <div class="stat s-total"><div class="stat-k">可清理总量</div><div class="stat-v" id="st-total">—</div><div class="stat-s" id="st-total-s">尚未扫描</div></div>
+      <div class="stat s-cand"><div class="stat-k">候选条目</div><div class="stat-v" id="st-cand">—</div><div class="stat-s" id="st-cand-s">等待扫描</div></div>
+      <div class="stat s-prot"><div class="stat-k">保护拦截</div><div class="stat-v" id="st-prot">—</div><div class="stat-s">安全防线生效次数</div></div>
+      <div class="stat s-idx"><div class="stat-k">索引规模</div><div class="stat-v" id="st-idx">—</div><div class="stat-s" id="st-idx-s">目录 / 文件</div></div>
+      <div class="stat s-skip"><div class="stat-k">未达年龄阈值</div><div class="stat-v" id="st-skip">—</div><div class="stat-s">仍在使用中，已跳过</div></div>
+    </section>
+
+    <!-- 内容区 -->
+    <section class="content" id="content">
+
+      <!-- ---------------- 候选清单 ---------------- -->
+      <div class="view on" id="view-candidates">
+        <div id="cand-stage"></div>
+      </div>
+
+      <!-- ---------------- 安全防线 ---------------- -->
+      <div class="view" id="view-defense">
+        <div class="card">
+          <div class="card-hd">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            <h2>安全防线记录</h2>
+            <span class="sub">凡是命中保护规则的路径，即使白名单写错了也删不掉。这里列出全部被拦下的目标。</span>
+          </div>
+          <div class="card-bd" id="def-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <h2>其它跳过</h2>
+            <span class="sub">目录联接不跟随、未达年龄阈值不下手、深度截断会明确告警——都是刻意设计的保守行为。</span>
+          </div>
+          <div class="card-bd" id="def-other"></div>
+        </div>
+      </div>
+
+      <!-- ---------------- 清理报告 ---------------- -->
+      <div class="view" id="view-report">
+        <div id="report-stage"></div>
+      </div>
+
+      <!-- ---------------- 白名单规则 ---------------- -->
+      <div class="view" id="view-rules">
+        <div class="note" style="margin-bottom:14px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <div><b>白名单制，不是黑名单制。</b>只有下面这些规则显式列出的路径才会成为候选——不存在「没被排除所以被删掉」的情况。关掉某条规则，它的候选会立即从清单里消失。</div>
+        </div>
+        <div class="card">
+          <div class="card-hd">
+            <h2>规则清单</h2>
+            <span class="sub" id="rules-sub">14 条 · config/rules.default.json</span>
+            <div class="grow"></div>
+            <button class="btn btn-ghost btn-sm" id="btn-rules-all">全部启用</button>
+            <button class="btn btn-ghost btn-sm" id="btn-rules-none">全部停用</button>
+          </div>
+          <div id="rules-body"></div>
+        </div>
+      </div>
+
+      <!-- ---------------- 安全说明 ---------------- -->
+      <div class="view" id="view-safety">
+        <div class="card">
+          <div class="card-hd"><h2>四道保护拦截</h2><span class="sub">作用对象各不相同，互不干扰，且没有任何绕过机制。</span></div>
+          <div class="layers">
+            <div class="layer">
+              <div class="layer-n">LAYER 01</div><h4>具体路径</h4>
+              <p>目标等于该路径、或位于其之下即拦截。保护系统区与关键子系统。</p>
+              <span class="mono">neverTouchPaths · 22 条</span>
+            </div>
+            <div class="layer">
+              <div class="layer-n">LAYER 02</div><h4>目录名</h4>
+              <p>目标自身最后一级目录名命中即拦截，只判叶子不判祖先。</p>
+              <span class="mono">neverTouchDirectoryNames · 38 个</span>
+            </div>
+            <div class="layer">
+              <div class="layer-n">LAYER 03</div><h4>路径段</h4>
+              <p>路径中出现受保护的目录段即拦截，兜住用户数据区。</p>
+              <span class="mono">neverTouchPathSegments · 23 段</span>
+            </div>
+            <div class="layer">
+              <div class="layer-n">LAYER 04</div><h4>扩展名</h4>
+              <p>文件扩展名命中即拦截。数据库、虚拟机镜像、密钥、文档一律不碰。</p>
+              <span class="mono">neverTouchExtensions · 45 项</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h2>引擎的硬性质</h2></div>
+          <div class="card-pad" style="padding-top:4px">
+            <div class="note g" style="margin-bottom:12px">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              <div><b>界面只能做减法。</b>清理时界面只把勾选的<b>路径字符串</b>交给引擎；引擎会重新完整扫描一遍，再与勾选结果取交集，最后对每一条重跑完整保护裁决。<br>因此界面能做的只有「从引擎自己算出的候选里减掉一些」——永远无法让引擎去删一个它自己不会产生的目标。</div>
+            </div>
+            <dl class="kv" style="padding:0">
+              <dt>默认只读</dt><dd>不加 <span class="mono" style="font-family:var(--mono);font-size:11.5px">-Mode Clean</span> 永远不删任何东西，第一次跑就是纯扫描 + 出报告</dd>
+              <dt>不跟随链接</dt><dd>目录联接与符号链接一律跳过，避免 <span style="font-family:var(--mono);font-size:11.5px">D:\cache → C:\Users\…</span> 这类链接导致跨盘误删</dd>
+              <dt>回收站删除</dt><dd>底层调 SHFileOperation + FOF_ALLOWUNDO，全程无弹窗、不阻塞，删错了可以还原</dd>
+              <dt>年龄阈值</dt><dd>每条规则带 minAgeDays，只清「最后修改早于 N 天」的内容，避免删掉正在使用的缓存</dd>
+              <dt>执行前复查</dt><dd>扫描到执行之间会重跑存在性 + 实际类型 + 完整保护裁决，防住 TOCTOU 掉包</dd>
+              <dt>四份留痕</dt><dd>控制台、日志、JSON 报告、HTML 报告，每一条操作都可事后审计</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd"><h2>刻意不做的事</h2></div>
+          <div class="card-pad" style="padding-top:4px">
+            <dl class="kv" style="padding:0">
+              <dt>注册表清理</dt><dd>与系统耦合面太大，一旦清错无法用回收站还原，与本项目「可控可还原」的定位不符</dd>
+              <dt>卸载残留清理</dt><dd>同上，误判代价远高于收益</dd>
+              <dt>压缩包一律不碰</dt><dd><span style="font-family:var(--mono);font-size:11.5px">.zip / .7z / .rar</span> 全部列入保护——会漏掉一些本可安全清理的压缩缓存，这是刻意的保守取舍</dd>
+              <dt>非 Windows 平台</dt><dd>依赖 SHFileOperation 与回收站语义，仅支持 Windows</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 操作栏 -->
+    <footer class="actionbar" id="actionbar" hidden>
+      <button class="btn btn-ghost btn-sm" id="btn-all">全选</button>
+      <button class="btn btn-ghost btn-sm" id="btn-none">全不选</button>
+      <button class="btn btn-ghost btn-sm" id="btn-invert">反选</button>
+      <div style="width:1px;height:22px;background:var(--border);margin:0 3px"></div>
+      <div class="sel-count">已选 <span id="sel-n">0</span> 项</div>
+      <div class="sel-bytes">合计 <b id="sel-b" style="font-weight:640;color:var(--text)">0 B</b></div>
+      <div class="tb-spacer"></div>
+      <label class="switch" title="演练模式：走完整流程但不真删">
+        <input type="checkbox" id="dryrun"><span>演练模式</span>
+      </label>
+      <select class="field" id="method" style="width:150px">
+        <option value="recycle">回收站（可还原）</option>
+        <option value="permanent">永久删除（不可还原）</option>
+      </select>
+      <button class="btn btn-primary" id="btn-clean" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        清理选中项
+      </button>
+    </footer>
+
+  </main>
+</div>
+
+<div class="modal-root" id="modalRoot"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   SafeDriveCleaner · 交互界面逻辑
+   全部为前端模拟数据，不读取、不修改、不删除本机任何文件。
+   ========================================================================= */
+
+const RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ------------------------------------------------------------------ 图标 */
+const I = {
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  shieldOk:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+  scissors:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  folder:'<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>',
+  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  db:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+  trash:'<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  restore:'<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>',
+  drive:'<rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 12h.01M10 12h.01"/>',
+  play:'<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  ext:'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/>',
+  layer:'<path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>'
+};
+function ic(name, size, width){
+  return '<svg width="'+(size||16)+'" height="'+(size||16)+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(width||2)+'" stroke-linecap="round" stroke-linejoin="round">'+I[name]+'</svg>';
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ------------------------------------------------------------------ 工具 */
+const KB=1024, MB=KB*1024, GB=MB*1024;
+function fmtSize(b){
+  if(b==null) return "—";
+  if(b>=GB) return (b/GB).toFixed(2)+" GB";
+  if(b>=MB) return (b/MB).toFixed(b/MB>=100?0:1)+" MB";
+  if(b>=KB) return (b/KB).toFixed(0)+" KB";
+  return b+" B";
+}
+function fmtNum(n){ return (n==null?0:n).toLocaleString("en-US"); }
+const CAT_CLASS = {
+  "系统临时":"c7","崩溃转储":"c6","缩略图缓存":"c7","包管理器缓存":"c1",
+  "IDE 缓存":"c4","浏览器缓存":"c5","回收站":"c6"
+};
+function catTag(c){ return '<span class="tag '+(CAT_CLASS[c]||"c7")+'">'+esc(c)+'</span>'; }
+const RISK_TXT = {low:"低", medium:"中", high:"高"};
+function riskTag(r){ return '<span class="risk '+r+'"><i></i>'+RISK_TXT[r]+'</span>'; }
+function countUp(el, to, fmt, dur){
+  if(!el) return;
+  dur = dur || 850;
+  if(RM){ el.textContent = fmt(to); return; }
+  const from = 0, t0 = performance.now();
+  (function step(t){
+    const p = Math.min(1, (t-t0)/dur);
+    const e = 1-Math.pow(1-p, 3);
+    el.textContent = fmt(from + (to-from)*e);
+    if(p<1) requestAnimationFrame(step);
+  })(performance.now());
+}
+
+/* ------------------------------------------------------------------ 数据 */
+const RULES = [
+  {id:"sys-temp-drive", name:"本盘系统与全局临时目录", category:"系统临时", risk:"low", minAge:3, enabled:true, type:"directory", note:"删除后系统会自动重建。跳过 3 天内修改过的内容，避免影响正在运行的程序。", patterns:["{ROOT}\\Temp","{ROOT}\\temp","{ROOT}\\tmp","{ROOT}\\Windows\\Temp"]},
+  {id:"sys-crashdumps", name:"崩溃转储文件", category:"崩溃转储", risk:"low", minAge:3, enabled:true, type:"directory", note:"程序崩溃产生的内存转储。若你正在排查崩溃问题，请先排除本规则。", patterns:["{ROOT}\\CrashDumps","{ROOT}\\**\\CrashDumps","{ROOT}\\Windows\\LiveKernelReports"]},
+  {id:"sys-thumbnail-cache", name:"缩略图与图标缓存文件", category:"缩略图缓存", risk:"low", minAge:1, enabled:true, type:"file", note:"资源管理器缩略图索引，删除后首次浏览文件夹时会自动重建（可能短暂变慢）。", patterns:["{ROOT}\\**\\Thumbs.db","{ROOT}\\**\\ehthumbs.db","{ROOT}\\**\\IconCache.db"]},
+  {id:"pkg-node", name:"npm / yarn / pnpm 缓存", category:"包管理器缓存", risk:"medium", minAge:7, enabled:true, type:"directory", note:"仅缓存，不影响 node_modules。删除后下次 npm/yarn/pnpm install 需要重新下载。", patterns:["{ROOT}\\**\\npm-cache","{ROOT}\\**\\.npm\\_cacache","{ROOT}\\**\\yarn-cache","{ROOT}\\**\\pnpm-store"]},
+  {id:"pkg-python", name:"pip / conda / poetry / uv 缓存", category:"包管理器缓存", risk:"medium", minAge:7, enabled:true, type:"directory", note:"Python 包下载缓存，删除后需重新下载（用 pip cache purge 效果相同）。", patterns:["{ROOT}\\**\\pip\\cache","{ROOT}\\**\\conda\\pkgs","{ROOT}\\**\\uv\\cache"]},
+  {id:"pkg-jvm", name:"Gradle / Maven 缓存", category:"包管理器缓存", risk:"medium", minAge:30, enabled:true, type:"directory", note:"Java 构建依赖缓存。删除后下一次构建会重新联网下载，耗时较长。", patterns:["{ROOT}\\**\\.gradle\\caches","{ROOT}\\**\\.gradle\\daemon","{ROOT}\\**\\.m2\\repository"]},
+  {id:"pkg-dotnet", name:"NuGet 包缓存", category:"包管理器缓存", risk:"medium", minAge:30, enabled:true, type:"directory", note:".NET 依赖缓存，删除后下次还原需重新下载。", patterns:["{ROOT}\\**\\.nuget\\packages","{ROOT}\\**\\NuGet\\v3-cache"]},
+  {id:"pkg-misc", name:"Cargo / Go / Composer 缓存", category:"包管理器缓存", risk:"medium", minAge:30, enabled:true, type:"directory", note:"Rust / Go / PHP 的依赖下载缓存。", patterns:["{ROOT}\\**\\.cargo\\registry\\cache","{ROOT}\\**\\go\\pkg\\mod\\cache\\download","{ROOT}\\**\\Composer\\cache"]},
+  {id:"ide-jetbrains", name:"JetBrains IDE 缓存 / 日志 / 索引", category:"IDE 缓存", risk:"medium", minAge:7, enabled:true, type:"directory", note:"IDEA / PyCharm / WebStorm 等的缓存与索引，删除后首次打开项目会重新建立索引。", patterns:["{ROOT}\\**\\JetBrains\\*\\caches","{ROOT}\\**\\JetBrains\\*\\index","{ROOT}\\**\\JetBrains\\*\\log"]},
+  {id:"ide-vscode", name:"VS Code 缓存与日志", category:"IDE 缓存", risk:"low", minAge:3, enabled:true, type:"directory", note:"不触碰 User\\settings.json、keybindings.json 与 User\\History，只清缓存与日志。", patterns:["{ROOT}\\**\\Code\\CachedData","{ROOT}\\**\\Code\\Cache","{ROOT}\\**\\Code\\GPUCache","{ROOT}\\**\\Code\\logs"]},
+  {id:"ide-visualstudio", name:"Visual Studio 组件缓存", category:"IDE 缓存", risk:"low", minAge:7, enabled:true, type:"directory", note:"VS 的组件模型缓存，删除后首次启动会稍慢。", patterns:["{ROOT}\\**\\VisualStudio\\*\\ComponentModelCache"]},
+  {id:"browser-chromium", name:"Chromium 内核浏览器缓存", category:"浏览器缓存", risk:"low", minAge:1, enabled:true, type:"directory", note:"只清网页缓存，不动 Cookie、书签、密码、历史记录。", patterns:["{ROOT}\\**\\Chrome\\User Data\\*\\Cache","{ROOT}\\**\\Chrome\\User Data\\*\\Code Cache","{ROOT}\\**\\Edge\\User Data\\*\\Cache","{ROOT}\\**\\Edge\\User Data\\*\\GPUCache"]},
+  {id:"browser-firefox", name:"Firefox 缓存", category:"浏览器缓存", risk:"low", minAge:1, enabled:true, type:"directory", note:"只清 Firefox 缓存目录，不动 profile 中的 places.sqlite、logins.json 等数据文件。", patterns:["{ROOT}\\**\\Firefox\\Profiles\\*\\cache2","{ROOT}\\**\\Firefox\\Profiles\\*\\startupCache"]},
+  {id:"recycle-bin", name:"本盘回收站", category:"回收站", risk:"high", minAge:0, enabled:true, type:"recycleBin", note:"清空指定盘的回收站。回收站内容本身已是「已删除文件」，但仍可能是你打算还原的文件——确认前请先打开回收站看一眼。", patterns:[]}
+];
+const RULE_BY_ID = {}; RULES.forEach(r => RULE_BY_ID[r.id] = r);
+
+let CID = 0;
+function C(path, ruleId, bytes, files, dirs, ageDays, type){
+  const r = RULE_BY_ID[ruleId];
+  return { id:"c"+(++CID), path, ruleId, ruleName:r.name, category:r.category, risk:r.risk,
+           type:type||r.type, bytes, files, dirs, ageDays, note:r.note };
+}
+const ALL_CANDIDATES = [
+  C("D:\\Temp",                                     "sys-temp-drive",      Math.round(2.41*GB), 1842, 184, 21),
+  C("D:\\tmp",                                      "sys-temp-drive",      Math.round(486*MB),   312,  27,  9),
+  C("D:\\CrashDumps",                               "sys-crashdumps",      Math.round(774*MB),     6,   0, 34),
+  C("D:\\媒体库\\照片\\Thumbs.db",                    "sys-thumbnail-cache", Math.round(3.2*MB),     1,   0, 61, "file"),
+  C("D:\\媒体库\\视频\\Thumbs.db",                    "sys-thumbnail-cache", Math.round(1.8*MB),     1,   0, 47, "file"),
+  C("D:\\dev\\npm-cache",                           "pkg-node",            Math.round(3.86*GB),12904,1204, 44),
+  C("D:\\dev\\pnpm-store",                          "pkg-node",            Math.round(5.12*GB),38441,3118, 27),
+  C("D:\\dev\\yarn-cache",                          "pkg-node",            Math.round(1.03*GB), 5208, 604, 58),
+  C("D:\\dev\\pip-cache",                           "pkg-python",          Math.round(892*MB),  2114, 188, 39),
+  C("D:\\dev\\uv-cache",                            "pkg-python",          Math.round(1.47*GB), 8930, 742, 16),
+  C("D:\\dev\\.gradle\\caches",                     "pkg-jvm",             Math.round(4.28*GB),41220,4012, 96),
+  C("D:\\dev\\.m2\\repository",                     "pkg-jvm",             Math.round(2.19*GB),18447,1882,121),
+  C("D:\\dev\\.nuget\\packages",                    "pkg-dotnet",          Math.round(1.76*GB), 9338, 901, 88),
+  C("D:\\dev\\.cargo\\registry\\cache",             "pkg-misc",            Math.round(634*MB),  4102, 388, 47),
+  C("D:\\dev\\go\\pkg\\mod\\cache\\download",       "pkg-misc",            Math.round(2.94*GB),22058,2204, 63),
+  C("D:\\dev\\JetBrains\\IntelliJIdea2024.1\\caches","ide-jetbrains",      Math.round(3.11*GB),27660,2410, 12),
+  C("D:\\dev\\JetBrains\\WebStorm2024.2\\caches",   "ide-jetbrains",       Math.round(1.88*GB),15204,1388,  6),
+  C("D:\\dev\\Code\\CachedData",                    "ide-vscode",          Math.round(328*MB),  1442,  96,  5),
+  C("D:\\dev\\Code\\GPUCache",                      "ide-vscode",          Math.round(96*MB),    214,  12, 11),
+  C("D:\\dev\\Code\\logs",                          "ide-vscode",          Math.round(41*MB),    388,  24,  4),
+  C("D:\\Soft\\Chrome\\User Data\\Default\\Cache",  "browser-chromium",    Math.round(1.24*GB), 9704, 812,  2),
+  C("D:\\Soft\\Edge\\User Data\\Default\\Cache",    "browser-chromium",    Math.round(604*MB),  4228, 366,  4),
+  C("D:\\Soft\\Firefox\\Profiles\\k9x2.default\\cache2","browser-firefox", Math.round(512*MB),  3884, 302,  3),
+  C("D:\\$RECYCLE.BIN",                             "recycle-bin",         Math.round(8.42*GB), 1204, 388,  0, "recycleBin")
+];
+
+const PROT_HITS = [
+  {path:"D:\\dev\\Projects\\my-app\\.git",              code:"P_DIRNAME", rule:"sys-temp-drive",   reason:"命中保护目录名 .git —— 版本库，删除后无法恢复提交历史"},
+  {path:"D:\\dev\\Projects\\my-app\\node_modules\\.cache", code:"P_DIRNAME", rule:"pkg-node",     reason:"命中保护目录名 node_modules —— 依赖目录，删除后需完整重装"},
+  {path:"D:\\dev\\Projects\\legacy\\.svn",              code:"P_DIRNAME", rule:"sys-temp-drive",   reason:"命中保护目录名 .svn —— 集中式版本库元数据"},
+  {path:"D:\\dev\\Projects\\fin\\data\\metrics.db",     code:"P_EXT",     rule:"sys-temp-drive",   reason:"命中保护扩展名 .db —— 数据库文件，视为不可再生数据"},
+  {path:"D:\\Documents\\工作\\客户数据\\prod.sqlite",     code:"P_SEGMENT", rule:"sys-temp-drive",   reason:"命中保护路径段 Documents，且扩展名 .sqlite 同样受保护"},
+  {path:"D:\\OneDrive\\归档\\年度报表.xlsx",              code:"P_SEGMENT", rule:"sys-temp-drive",   reason:"命中保护路径段 OneDrive，且扩展名 .xlsx 受保护"},
+  {path:"D:\\Users\\Public\\Desktop\\项目资料\\需求.docx", code:"P_SEGMENT", rule:"sys-temp-drive",  reason:"命中保护路径段 Desktop 与扩展名 .docx"},
+  {path:"D:\\VM\\Ubuntu-22.04-dev.vhdx",                code:"P_EXT",     rule:"sys-temp-drive",   reason:"命中保护扩展名 .vhdx —— 虚拟机磁盘，体积大且不可再生"},
+  {path:"D:\\备份\\2025-全量备份.zip",                   code:"P_EXT",     rule:"sys-temp-drive",   reason:"命中保护扩展名 .zip —— 压缩包一律不碰（刻意的保守取舍）"},
+  {path:"D:\\Keys\\deploy_rsa.pem",                     code:"P_EXT",     rule:"sys-temp-drive",   reason:"命中保护扩展名 .pem —— 密钥文件"},
+  {path:"D:\\媒体库\\照片\\原片\\RAW-2024.psd",           code:"P_EXT",     rule:"sys-thumbnail-cache", reason:"命中保护扩展名 .psd —— 设计源文件"},
+  {path:"D:\\Windows\\WinSxS\\Backup",                  code:"P_PATH",    rule:"sys-temp-drive",   reason:"位于保护路径 D:\\Windows\\WinSxS 之下"}
+];
+const LINK_SKIPS = [
+  {path:"D:\\cache",             reason:"目录联接，指向 C:\\Users\\…\\AppData\\Local\\Temp —— 不跟随，避免跨盘误删"},
+  {path:"D:\\dev\\npm-global",   reason:"目录联接，指向 C:\\Users\\…\\AppData\\Roaming\\npm —— 不跟随"}
+];
+const TOO_NEW = [
+  {path:"D:\\Temp\\vite-build-cache",                       rule:"sys-temp-drive",     age:0, need:3},
+  {path:"D:\\Soft\\Chrome\\User Data\\Default\\Code Cache", rule:"browser-chromium",   age:0, need:1},
+  {path:"D:\\dev\\Code\\Cache",                             rule:"ide-vscode",         age:1, need:3},
+  {path:"D:\\dev\\npm-cache\\_cacache\\tmp",                rule:"pkg-node",           age:2, need:7},
+  {path:"D:\\dev\\pnpm-store\\v3\\files",                   rule:"pkg-node",           age:4, need:7}
+];
+const TRUNCATED = [
+  {path:"D:\\dev\\Projects\\monorepo\\packages", depth:10},
+  {path:"D:\\Soft\\Chrome\\User Data\\Default\\Service Worker", depth:10}
+];
+
+const SCAN_PHASES = [
+  {t:"加载白名单规则与保护清单", meta:"14 条规则 · 22 条保护路径", ms:420},
+  {t:"构建目录索引（一次性遍历）", meta:"正在下探 D:\\ …", ms:760},
+  {t:"匹配白名单规则", meta:"npm-cache / Chrome Cache / JetBrains …", ms:560},
+  {t:"运行四道保护裁决", meta:"路径 · 目录名 · 路径段 · 扩展名", ms:480},
+  {t:"计算体积与年龄阈值", meta:"minAgeDays 逐条比对", ms:380},
+  {t:"生成 HTML / JSON 报告", meta:"reports\\", ms:300}
+];
+
+/* ------------------------------------------------------------------ 状态 */
+const S = {
+  scanned:false, scanning:false,
+  candidates:[],            // 当前生效候选（受规则开关影响）
+  selected:new Set(),
+  filter:"全部分类",
+  sort:{key:"bytes", dir:-1},
+  cleaned:[],               // 清理记录
+  cleanedPaths:new Set(),   // 已处理过的路径，避免切换规则时复活
+  scanSnapshot:null,        // 扫描瞬间的快照，报告以它为准
+  dryRun:false,
+  elapsed:0,
+  indexDirs:0, indexFiles:0, pruned:0,
+  driveUsedGB:612
+};
+const VIEWS = {
+  candidates:{h:"候选清单", s:"白名单驱动的磁盘安全清理 · 默认只读扫描 · 四道保护拦截 · 绝不跟随目录联接", bar:true},
+  defense:{h:"安全防线", s:"保护规则拦截记录 · 目录联接跳过 · 年龄阈值过滤 · 深度截断告警", bar:false},
+  report:{h:"清理报告", s:"扫描摘要 · 分类汇总 · 清理明细 · 还原入口", bar:false},
+  rules:{h:"白名单规则", s:"只有规则里显式列出的路径才会成为候选 · 可逐条开关", bar:false},
+  safety:{h:"安全说明", s:"四道保护拦截 · 引擎的硬性质 · 刻意不做的事", bar:false}
+};
+
+/* ------------------------------------------------------------------ 渲染：扫描中 */
+function renderScanning(){
+  const host = document.getElementById("cand-stage");
+  host.innerHTML =
+    '<div class="card"><div class="scanning">'+
+      '<div class="scan-title"><span class="pulse"></span>正在扫描 '+esc(currentDrive())+':\\ —— 只读模式，不会删除任何文件</div>'+
+      '<div class="scan-bar"><i id="scan-bar"></i></div>'+
+      '<div class="scan-pct" id="scan-pct">0%</div>'+
+      '<div class="phases" id="phases">'+
+        SCAN_PHASES.map((p,i)=>'<div class="phase" id="ph'+i+'"><span class="phase-ic"></span><span>'+esc(p.t)+'</span><span class="meta">'+esc(p.meta)+'</span></div>').join("")+
+      '</div>'+
+    '</div></div>';
+}
+function runScan(){
+  if(S.scanning) return;
+  S.scanning = true;
+  document.getElementById("scan-label").textContent = "扫描中…";
+  document.getElementById("btn-scan").disabled = true;
+  renderScanning();
+  show();
+
+  const total = SCAN_PHASES.reduce((a,p)=>a+p.ms,0);
+  let done = 0;
+  const bar = document.getElementById("scan-bar");
+  const pct = document.getElementById("scan-pct");
+
+  SCAN_PHASES.forEach((p,i) => {
+    setTimeout(() => {
+      const el = document.getElementById("ph"+i);
+      if(!el) return;
+      el.classList.add("doing");
+      const prev = document.getElementById("ph"+(i-1));
+      if(prev){ prev.classList.remove("doing"); prev.classList.add("done"); prev.querySelector(".phase-ic").innerHTML = ic("check",10,3.2); }
+      const from = done; done += p.ms;
+      if(bar){ bar.style.width = Math.round(done/total*100)+"%"; }
+      if(pct){ pct.textContent = Math.round(done/total*100)+"%"; }
+      if(i === SCAN_PHASES.length-1){
+        setTimeout(finishScan, p.ms);
+      }
+    }, i===0 ? 60 : SCAN_PHASES.slice(0,i).reduce((a,x)=>a+x.ms,0));
+  });
+}
+function finishScan(){
+  const last = document.getElementById("ph"+(SCAN_PHASES.length-1));
+  if(last){ last.classList.remove("doing"); last.classList.add("done"); last.querySelector(".phase-ic").innerHTML = ic("check",10,3.2); }
+
+  S.scanning = false;
+  S.scanned = true;
+  S.selected.clear();
+  S.elapsed = 12.4 + Math.random()*4;
+  S.indexDirs = 48213; S.indexFiles = 412806; S.pruned = 174;
+  rebuildCandidates();
+  document.getElementById("scan-label").textContent = "重新扫描";
+  document.getElementById("btn-scan").disabled = false;
+
+  setTimeout(() => {
+    updStats();
+    renderCandidates();
+    updNavBadges();
+    toast("扫描完成 · 索引 "+fmtNum(S.indexDirs)+" 目录 / "+fmtNum(S.indexFiles)+" 文件 · 用时 "+S.elapsed.toFixed(1)+" 秒", "ok");
+  }, 320);
+}
+
+/* 依据规则开关重建候选集 */
+function rebuildCandidates(){
+  S.candidates = ALL_CANDIDATES.filter(c => RULE_BY_ID[c.ruleId].enabled)
+    .map(c => Object.assign({}, c));
+}
+
+/* ------------------------------------------------------------------ 渲染：候选清单 */
+function currentDrive(){ return document.getElementById("drive").value; }
+function sortedCandidates(){
+  const arr = S.candidates.filter(c => S.filter==="全部分类" || c.category===S.filter);
+  const k = S.sort.key, d = S.sort.dir;
+  return arr.slice().sort((a,b)=>{
+    let x=a[k], y=b[k];
+    if(k==="category"||k==="path"||k==="risk"){ x=String(x); y=String(y); return x.localeCompare(y,"zh")*d; }
+    if(k==="ageDays"){ return ((x==null?-1:x)-(y==null?-1:y))*d; }
+    return (x-y)*d;
+  });
+}
+function renderCandidates(){
+  const host = document.getElementById("cand-stage");
+  if(!S.scanned){
+    host.innerHTML = '<div class="card"><div class="empty">'+
+      '<div class="empty-ic">'+ic("drive",24,1.7)+'</div>'+
+      '<h3>还没有扫描结果</h3>'+
+      '<p>点击右上角「开始扫描」对 '+esc(currentDrive())+':\\ 做一次只读扫描。<br>扫描不会删除任何文件，只会列出符合白名单规则的候选并生成报告。</p>'+
+      '<button class="btn btn-primary" onclick="runScan()" style="margin-top:16px">'+ic("play",14)+'开始扫描 '+esc(currentDrive())+':\\</button>'+
+      '</div></div>';
+    updActionBar();
+    return;
+  }
+  if(S.candidates.length===0){
+    host.innerHTML = '<div class="card"><div class="empty">'+
+      '<div class="empty-ic">'+ic("shieldOk",24,1.7)+'</div>'+
+      '<h3>'+(ALL_CANDIDATES.length ? "所有规则都已停用" : "未发现可清理目标")+'</h3>'+
+      '<p>'+(ALL_CANDIDATES.length ? "在「白名单规则」里重新启用规则后，候选会立即回到清单。" : "白名单里没有命中任何路径。这是正常结果——本工具从不「因为没被排除就删掉」。")+'</p>'+
+      '</div></div>';
+    updActionBar();
+    return;
+  }
+
+  const cats = {};
+  S.candidates.forEach(c => { cats[c.category] = (cats[c.category]||0)+1; });
+  const catKeys = Object.keys(cats).sort((a,b)=>cats[b]-cats[a]);
+  const rows = sortedCandidates();
+  const allSel = rows.length>0 && rows.every(r=>S.selected.has(r.id));
+  const someSel = rows.some(r=>S.selected.has(r.id));
+
+  host.innerHTML =
+  '<div class="card">'+
+    '<div class="filters">'+
+      '<button class="chip '+((S.filter==="全部分类")?"on":"")+'" data-cat="全部分类">全部 <span class="c">'+S.candidates.length+'</span></button>'+
+      catKeys.map(k=>'<button class="chip '+((S.filter===k)?"on":"")+'" data-cat="'+esc(k)+'">'+esc(k)+' <span class="c">'+cats[k]+'</span></button>').join("")+
+      '<div style="flex:1"></div>'+
+      '<span style="font-size:11.5px;color:var(--muted)">按规则白名单命中 · 已按体积降序</span>'+
+    '</div>'+
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
+      '<th style="width:40px"><input type="checkbox" class="cb" id="cb-all" '+(allSel?"checked":"")+'></th>'+
+      th("path","路径")+th("category","分类")+th("bytes","体积","r")+th("files","文件数","r")+th("ageDays","未使用(天)","r")+th("risk","风险")+
+    '</tr></thead><tbody id="tbody">'+
+    rows.map((c,i)=>rowHtml(c,i)).join("")+
+    '</tbody></table></div>'+
+  '</div>';
+
+  const cbAll = document.getElementById("cb-all");
+  if(cbAll){ cbAll.indeterminate = !allSel && someSel; cbAll.addEventListener("change", e => {
+    const on = e.target.checked;
+    rows.forEach(r => on ? S.selected.add(r.id) : S.selected.delete(r.id));
+    renderCandidates();
+  });}
+
+  host.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => {
+    S.filter = b.getAttribute("data-cat"); renderCandidates();
+  }));
+  host.querySelectorAll("th[data-sort]").forEach(h => h.addEventListener("click", () => {
+    const k = h.getAttribute("data-sort");
+    if(S.sort.key===k) S.sort.dir *= -1; else S.sort = {key:k, dir:(k==="path"||k==="category"||k==="risk")?1:-1};
+    renderCandidates();
+  }));
+  host.querySelectorAll("input.cb[data-id]").forEach(cb => cb.addEventListener("change", e => {
+    const id = e.target.getAttribute("data-id");
+    e.target.checked ? S.selected.add(id) : S.selected.delete(id);
+    const tr = e.target.closest("tr");
+    if(tr) tr.classList.toggle("sel", e.target.checked);
+    updActionBar(); updNavBadges();
+  }));
+
+  updActionBar();
+}
+function th(key,label,align){
+  const on = S.sort.key===key;
+  const mark = on ? (S.sort.dir>0?' <span style="opacity:.55">↑</span>':' <span style="opacity:.55">↓</span>') : '';
+  return '<th data-sort="'+key+'" class="'+(align||"")+'" style="cursor:pointer;user-select:none">'+esc(label)+mark+'</th>';
+}
+function rowHtml(c,i){
+  const sel = S.selected.has(c.id);
+  const parts = c.path.split("\\");
+  const leaf = parts.pop();
+  const head = parts.length ? '<i>'+esc(parts.join("\\"))+'\\</i>' : "";
+  return '<tr class="'+(sel?"sel":"")+'" style="--i:'+i+'" data-row="'+c.id+'" title="'+esc(c.note)+'">'+
+    '<td><input type="checkbox" class="cb" data-id="'+c.id+'" '+(sel?"checked":"")+'></td>'+
+    '<td><div class="pth">'+head+'<b>'+esc(leaf)+'</b></div></td>'+
+    '<td>'+catTag(c.category)+'</td>'+
+    '<td class="r" style="font-weight:560">'+fmtSize(c.bytes)+'</td>'+
+    '<td class="r" style="color:var(--muted)">'+fmtNum(c.files)+'</td>'+
+    '<td class="r" style="color:var(--muted)">'+(c.ageDays==null?"—":c.ageDays)+'</td>'+
+    '<td>'+riskTag(c.risk)+'</td>'+
+  '</tr>';
+}
+
+/* ------------------------------------------------------------------ 统计 / 操作栏 */
+function updStats(){
+  const total = S.candidates.reduce((a,c)=>a+c.bytes,0);
+  const el = id => document.getElementById(id);
+  if(!S.scanned){
+    ["st-total","st-cand","st-prot","st-idx","st-skip"].forEach(i => el(i).textContent = "—");
+    return;
+  }
+  countUp(el("st-total"), total, v => fmtSize(v), 900);
+  countUp(el("st-cand"),  S.candidates.length, v => fmtNum(Math.round(v)), 900);
+  countUp(el("st-prot"),  PROT_HITS.length, v => fmtNum(Math.round(v)), 900);
+  el("st-idx").textContent = S.indexDirs>0 ? (Math.round(S.indexDirs/1000)+"K") : "—";
+  el("st-idx-s").textContent = "目录 / 文件 " + (S.indexFiles>0 ? (Math.round(S.indexFiles/1000)+"K") : "—");
+  countUp(el("st-skip"), TOO_NEW.length, v => fmtNum(Math.round(v)), 900);
+  el("st-total-s").textContent = "白名单命中 " + S.candidates.length + " 项";
+  el("st-cand-s").textContent = "扫描用时 " + S.elapsed.toFixed(1) + " 秒";
+}
+function updNavBadges(){
+  const nDef = PROT_HITS.length + LINK_SKIPS.length + TOO_NEW.length + TRUNCATED.length;
+  document.getElementById("nb-cand").textContent = S.scanned ? S.candidates.length : 0;
+  document.getElementById("nb-defense").textContent = S.scanned ? nDef : 0;
+  const on = RULES.filter(r=>r.enabled).length;
+  document.getElementById("nb-rules").textContent = on + "/" + RULES.length;
+}
+function updActionBar(){
+  const bar = document.getElementById("actionbar");
+  bar.hidden = !(VIEWS[curView].bar && S.scanned);
+  let n=0, b=0;
+  S.candidates.forEach(c => { if(S.selected.has(c.id)){ n++; b+=c.bytes; } });
+  document.getElementById("sel-n").textContent = n;
+  document.getElementById("sel-b").textContent = fmtSize(b);
+  const btn = document.getElementById("btn-clean");
+  btn.disabled = n===0 || S.scanning;
+  const perm = document.getElementById("method").value==="permanent";
+  btn.className = "btn " + (perm ? "btn-danger" : "btn-primary");
+  document.getElementById("btn-all").disabled = !S.candidates.length;
+  document.getElementById("btn-none").disabled = !S.candidates.length;
+  document.getElementById("btn-invert").disabled = !S.candidates.length;
+}
+
+/* ------------------------------------------------------------------ 渲染：安全防线 */
+function renderDefense(){
+  const host = document.getElementById("def-list");
+  host.innerHTML = PROT_HITS.map(h => {
+    const tone = h.code==="P_PATH" ? "n" : "p";
+    const tags = [
+      '<span class="code '+(tone==="p"?"p":"")+'">'+esc(h.code)+'</span>',
+      '<span class="tag">规则 '+esc(h.rule)+'</span>'
+    ].join("");
+    return '<div class="hit">'+
+      '<div class="hit-ic '+tone+'">'+ic(h.code==="P_PATH"?"folder":"shieldOk",14,2)+'</div>'+
+      '<div class="hit-bd"><div class="hit-p">'+esc(h.path)+'</div>'+
+      '<div class="hit-r">'+esc(h.reason)+'</div>'+
+      '<div class="hit-meta">'+tags+'</div></div>'+
+    '</div>';
+  }).join("");
+
+  const other = [];
+  LINK_SKIPS.forEach(l => other.push({ic:"link", tone:"n", p:l.path, r:"目录联接 / 符号链接 —— "+l.reason, tag:'<span class="code">S_LINK</span>'}));
+  TOO_NEW.forEach(t => other.push({ic:"clock", tone:"w", p:t.path, r:"最后修改于 "+t.age+" 天前，规则要求 ≥ "+t.need+" 天 —— 视作仍在使用中，跳过", tag:'<span class="code s">S_TOO_NEW</span>'}));
+  TRUNCATED.forEach(t => other.push({ic:"scissors", tone:"w", p:t.path, r:"目录深度已达上限 "+t.depth+" 层未继续下探，更深层内容未被索引（会明确告警，不静默漏报）", tag:'<span class="code s">S_TRUNCATED</span>'}));
+
+  document.getElementById("def-other").innerHTML = other.map(o =>
+    '<div class="hit">'+
+      '<div class="hit-ic '+o.tone+'">'+ic(o.ic,14,2)+'</div>'+
+      '<div class="hit-bd"><div class="hit-p">'+esc(o.p)+'</div>'+
+      '<div class="hit-r">'+esc(o.r)+'</div>'+
+      '<div class="hit-meta">'+o.tag+'</div></div>'+
+    '</div>').join("");
+}
+
+/* ------------------------------------------------------------------ 渲染：报告 */
+function renderReport(){
+  const host = document.getElementById("report-stage");
+  if(!S.scanned){
+    host.innerHTML = '<div class="card"><div class="empty">'+
+      '<div class="empty-ic">'+ic("file",24,1.7)+'</div><h3>还没有报告</h3>'+
+      '<p>完成一次扫描后，这里会显示扫描摘要、分类汇总与清理明细。<br>每次运行都会同时产出 HTML / JSON / 日志三份留痕。</p></div></div>';
+    return;
+  }
+  const byCat = {};
+  S.candidates.forEach(c => { (byCat[c.category] = byCat[c.category] || {n:0,b:0}); byCat[c.category].n++; byCat[c.category].b+=c.bytes; });
+  const catArr = Object.keys(byCat).map(k=>({k,n:byCat[k].n,b:byCat[k].b})).sort((a,b)=>b.b-a.b);
+  const maxB = catArr.length ? catArr[0].b : 1;
+  const totalB = catArr.reduce((a,c)=>a+c.b,0);
+  const drive = currentDrive();
+
+  host.innerHTML =
+  '<div class="card">'+
+    '<div class="card-hd">'+ic("file",15)+'<h2>本次运行</h2><span class="sub">'+esc(drive)+':\\ · 只读扫描</span>'+
+      '<div class="grow"></div><span class="tag">'+esc(new Date().toLocaleString("zh-CN",{hour12:false}))+'</span></div>'+
+    '<dl class="kv">'+
+      '<dt>目标根目录</dt><dd style="font-family:var(--mono);font-size:12px">'+esc(drive)+':\\</dd>'+
+      '<dt>运行模式</dt><dd>Scan（只读） · 扫描深度 '+esc(document.getElementById("depth").value)+'</dd>'+
+      '<dt>索引规模</dt><dd>'+fmtNum(S.indexDirs)+' 个目录 / '+fmtNum(S.indexFiles)+' 个文件 · 遍历剪枝 '+fmtNum(S.pruned)+' 处</dd>'+
+      '<dt>扫描耗时</dt><dd>'+S.elapsed.toFixed(1)+' 秒</dd>'+
+      '<dt>参与规则</dt><dd>'+RULES.filter(r=>r.enabled).length+' / '+RULES.length+' 条</dd>'+
+      '<dt>保护拦截</dt><dd><b style="color:var(--ok)">'+PROT_HITS.length+'</b> 处（分层：目录名 '+PROT_HITS.filter(h=>h.code==="P_DIRNAME").length+' · 扩展名 '+PROT_HITS.filter(h=>h.code==="P_EXT").length+' · 路径段 '+PROT_HITS.filter(h=>h.code==="P_SEGMENT").length+' · 具体路径 '+PROT_HITS.filter(h=>h.code==="P_PATH").length+'）</dd>'+
+    '</dl>'+
+  '</div>'+
+
+  '<div class="card">'+
+    '<div class="card-hd"><h2>分类汇总</h2><span class="sub">共 '+S.candidates.length+' 项 · 合计 '+fmtSize(totalB)+'</span></div>'+
+    '<div class="bars">'+
+      catArr.map(c=>'<div class="bar-row"><span>'+esc(c.k)+' <span style="color:var(--faint)">'+c.n+' 项</span></span>'+
+        '<div class="bar"><i data-w="'+Math.round(c.b/maxB*100)+'"></i></div>'+
+        '<span class="bar-am">'+fmtSize(c.b)+'</span></div>').join("")+
+    '</div>'+
+  '</div>'+
+
+  (S.cleaned.length ? renderCleanDetail() :
+    '<div class="card"><div class="card-hd"><h2>清理明细</h2><span class="sub">尚未执行清理。勾选候选后点「清理选中项」。</span></div></div>')+
+
+  '<div class="card">'+
+    '<div class="card-hd"><h2>报告文件</h2><span class="sub">每次运行生成三份留痕，可事后审计每一条操作</span></div>'+
+    fileRow("text/html","safedrivecleaner-<时间戳>.html", "人类可读：分类汇总 · 清理明细 · 安全防线记录")+
+    fileRow("json","safedrivecleaner-<时间戳>.json", "机器可读：供脚本消费")+
+    fileRow("log","safedrivecleaner-<时间戳>.log", "完整运行日志（含 -Trace 调试信息）")+
+    '<div style="padding:4px 18px 16px"><div class="note w">'+ic("alert",15)+
+      '<div>还原入口：清理完成后，在「清理明细」里可以对每一条单独执行<b>还原</b>。还原依赖 Windows 本地化的「还原」动词，存在语言环境差异；失败时请直接打开资源管理器「回收站」按文件名手动还原——报告里记录了每一条的完整原始路径。</div></div></div>'+
+  '</div>';
+
+  host.querySelectorAll("i[data-w]").forEach(el => {
+    const w = el.getAttribute("data-w");
+    requestAnimationFrame(()=>{ setTimeout(()=>{ el.style.width = w+"%"; }, 30); });
+  });
+  host.querySelectorAll("[data-restore]").forEach(b => b.addEventListener("click", () => restoreOne(b.getAttribute("data-restore"))));
+}
+function fileRow(kind,name,desc){
+  return '<div class="file"><div class="file-ic">'+ic("file",14,1.9)+'</div>'+
+    '<div style="flex:1;min-width:0"><div class="file-nm">'+esc(name)+'</div><div class="file-p">reports\\'+esc(name)+' · '+esc(desc)+'</div></div>'+
+    '<span class="code">'+esc(kind)+'</span>'+
+    '<button class="btn btn-ghost btn-sm" disabled>打开</button></div>';
+}
+function renderCleanDetail(){
+  const done = S.cleaned;
+  const del = done.filter(x=>x.status==="已删除").length;
+  const dry = done.filter(x=>x.status==="预演").length;
+  const res = done.filter(x=>x.status==="已还原").length;
+  const bytes = done.filter(x=>x.status!=="已还原").reduce((a,x)=>a+x.bytes,0);
+  const perm = done[0] && done[0].method==="permanent";
+  return '<div class="card">'+
+    '<div class="card-hd"><h2>清理明细</h2>'+
+      '<span class="sub">'+(perm?"永久删除":"移入回收站（可还原）")+' · 共 '+done.length+' 条'+(del?" · 已删除 "+del: "")+(dry?" · 预演 "+dry:"")+(res?" · 已还原 "+res:"")+' · 释放 '+fmtSize(bytes)+'</span></div>'+
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
+      '<th>路径</th><th>分类</th><th class="r">体积</th><th>状态</th><th style="width:96px;text-align:right">操作</th>'+
+    '</tr></thead><tbody>'+
+    done.map((x,i)=>{
+      const st = x.status==="已删除" ? '<span class="risk low"><i></i>已删除</span>'
+               : x.status==="预演"   ? '<span class="risk medium"><i></i>预演</span>'
+               : '<span class="field" style="display:inline-flex;align-items:center;height:20px;padding:0 7px;font-size:11px;color:var(--muted);background:var(--sub)">已还原</span>';
+      const act = (x.status==="已删除" && !perm)
+        ? '<button class="btn btn-ghost btn-sm" data-restore="'+esc(x.id)+'" style="float:right">'+ic("restore",12)+'还原</button>'
+        : '<span style="float:right;color:var(--faint);font-size:11px">—</span>';
+      return '<tr style="--i:'+i+'" class="'+(x.status==="已还原"?"done":"")+'">'+
+        '<td><div class="pth">'+pathHtml(x.path)+'</div></td><td>'+catTag(x.category)+'</td>'+
+        '<td class="r">'+fmtSize(x.bytes)+'</td><td>'+st+'</td><td>'+act+'</td></tr>';
+    }).join("")+
+    '</tbody></table></div></div>';
+}
+function pathHtml(p){
+  const parts = p.split("\\"); const leaf = parts.pop();
+  return (parts.length?'<i>'+esc(parts.join("\\"))+'\\</i>':"")+'<b>'+esc(leaf)+'</b>';
+}
+
+/* ------------------------------------------------------------------ 渲染：规则 */
+function renderRules(){
+  const groups = {};
+  RULES.forEach(r => { (groups[r.category] = groups[r.category]||[]).push(r); });
+  const order = ["系统临时","崩溃转储","缩略图缓存","包管理器缓存","IDE 缓存","浏览器缓存","回收站"];
+  const host = document.getElementById("rules-body");
+  host.innerHTML = order.filter(k=>groups[k]).map(k =>
+    '<div class="rule-group"><h3>'+esc(k)+' <span style="color:var(--faint);font-weight:500">'+groups[k].length+' 条</span></h3>'+
+    groups[k].map(r => ruleHtml(r)).join("")+'</div>'
+  ).join("");
+  host.querySelectorAll("input[data-rule]").forEach(cb => cb.addEventListener("change", e => {
+    const r = RULE_BY_ID[e.target.getAttribute("data-rule")];
+    r.enabled = e.target.checked;
+    rebuildCandidates();
+    // 停用规则时清理其已选项
+    if(!r.enabled){
+      const ids = new Set(ALL_CANDIDATES.filter(c=>c.ruleId===r.id).map(c=>c.id));
+      S.selected.forEach(id => { if(ids.has(id)) S.selected.delete(id); });
+    }
+    renderRules(); updNavBadges(); updStats(); renderCandidates(); renderReport(); renderDefense();
+    toast((r.enabled?"已启用":"已停用")+"规则「"+r.name+"」"+(r.enabled?"":" · 其候选已从清单移除"), r.enabled?"ok":"warn");
+  }));
+  document.getElementById("rules-sub").textContent = RULES.filter(r=>r.enabled).length+" / "+RULES.length+" 条启用 · config/rules.default.json";
+}
+function ruleHtml(r){
+  return '<div class="rule '+(r.enabled?"":"off")+'">'+
+    '<label class="switch" style="margin-top:2px"><input type="checkbox" data-rule="'+r.id+'" '+(r.enabled?"checked":"")+'></label>'+
+    '<div class="rule-bd">'+
+      '<div class="rule-nm">'+esc(r.name)+' <span class="code">'+esc(r.id)+'</span></div>'+
+      '<div class="rule-nt">'+esc(r.note)+'</div>'+
+      '<div class="rule-tags">'+catTag(r.category)+riskTag(r.risk)+
+        '<span class="tag">最短年龄 '+(r.minAge===0?"不限":r.minAge+" 天")+'</span>'+
+        '<span class="tag">'+esc(r.type)+'</span>'+
+        '<span style="color:var(--faint);font-size:11px">'+r.patterns.length+' 条模式</span>'+
+      '</div>'+
+      (r.patterns.length ? '<div class="rule-tags">'+r.patterns.map(p=>'<span class="rule-ptn">'+esc(p)+'</span>').join("")+'</div>' : "")+
+    '</div></div>';
+}
+
+/* ------------------------------------------------------------------ 视图切换 */
+let curView = "candidates";
+function show(v){
+  curView = v || curView;
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("on", n.getAttribute("data-view")===curView));
+  document.querySelectorAll(".view").forEach(s => s.classList.toggle("on", s.id==="view-"+curView));
+  document.getElementById("tb-h1").textContent = VIEWS[curView].h;
+  document.getElementById("tb-sub").textContent = VIEWS[curView].s;
+  updActionBar();
+  document.getElementById("content").scrollTop = 0;
+}
+
+/* ------------------------------------------------------------------ Toast */
+function toast(msg, tone){
+  const box = document.getElementById("toasts");
+  const el = document.createElement("div");
+  el.className = "toast " + (tone||"");
+  const icon = tone==="ok" ? ic("check",15,2.4) : tone==="warn" ? ic("alert",15,2.2) : tone==="err" ? ic("alert",15,2.2) : ic("info",15,2.2);
+  el.innerHTML = icon + "<span>" + esc(msg) + "</span>";
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add("out"); setTimeout(()=>el.remove(), 320); }, 3400);
+}
+
+/* ------------------------------------------------------------------ 弹窗：确认清理 */
+function openConfirm(){
+  const sel = S.candidates.filter(c => S.selected.has(c.id));
+  if(!sel.length) return;
+  const bytes = sel.reduce((a,c)=>a+c.bytes,0);
+  const perm = document.getElementById("method").value==="permanent";
+  const need = perm ? "PERMANENT" : "YES";
+  const drive = currentDrive();
+  const dry = S.dryRun;
+
+  const root = document.getElementById("modalRoot");
+  root.innerHTML =
+  '<div class="modal-bg" data-close></div>'+
+  '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">'+
+    '<div class="modal-hd"><h3 id="mTitle" class="'+(dry?"":(perm?"danger":"warn"))+'">'+
+      ic(dry?"play":(perm?"alert":"shield"),17,2.1)+
+      (dry ? "演练模式：不会实际删除任何内容" : (perm ? "即将永久删除，此操作不可还原" : "即将把下列内容移入回收站"))+
+    '</h3></div>'+
+    '<div class="modal-bd">'+
+      '<div class="confirm-list">'+
+        '<div><span>目标根目录</span><b style="font-family:var(--mono)">'+esc(drive)+':\\</b></div>'+
+        '<div><span>清理条目</span><b>'+sel.length+' 项</b></div>'+
+        '<div><span>合计体积</span><b>'+fmtSize(bytes)+'</b></div>'+
+        '<div><span>删除方式</span><b>'+(dry?"仅演练（不删除）":(perm?"永久删除（不可还原）":"移入回收站（可还原）"))+'</b></div>'+
+      '</div>'+
+      '<div class="tip">'+(dry
+        ? "走完整清理流程、逐条展示将要删除的内容，但不会真的删除任何文件。用于最终确认。"
+        : (perm
+          ? "永久删除后无法通过回收站恢复。若不确定，请改用回收站方式。"
+          : "内容会进回收站，删错了可以在回收站里还原。"))+
+      '</div>'+
+      '<div class="tip" style="margin-top:6px;color:var(--text);font-weight:560">'+
+        (dry ? "输入 <b>"+need+"</b> 以开始演练：" : "请输入 <b>"+need+"</b> 以确认（大写或小写均可）：")+
+      '</div>'+
+      '<input class="inp" id="mInput" autocomplete="off" spellcheck="false" placeholder="'+need+'">'+
+    '</div>'+
+    '<div class="modal-ft">'+
+      '<button class="btn btn-ghost" data-close>取消</button>'+
+      '<button class="btn '+(dry?"btn-primary":(perm?"btn-danger":"btn-primary"))+'" id="mOk" disabled>'+
+        (dry?"开始演练":(perm?"永久删除":"确认清理"))+'</button>'+
+    '</div>'+
+  '</div>';
+
+  root.classList.add("on");
+  const input = document.getElementById("mInput");
+  const ok = document.getElementById("mOk");
+  setTimeout(()=>input.focus(), 60);
+
+  function validate(){
+    const v = input.value.trim();
+    const good = v.toUpperCase() === need;
+    ok.disabled = !good;
+    input.classList.toggle("bad", v.length>0 && !good);
+  }
+  input.addEventListener("input", validate);
+  input.addEventListener("keydown", e => { if(e.key==="Enter" && !ok.disabled) doClean(sel, perm, dry); });
+  ok.addEventListener("click", () => doClean(sel, perm, dry));
+  root.querySelectorAll("[data-close]").forEach(el => el.addEventListener("click", closeModal));
+  document.addEventListener("keydown", escClose);
+}
+function escClose(e){ if(e.key==="Escape") closeModal(); }
+function closeModal(){
+  const root = document.getElementById("modalRoot");
+  root.classList.remove("on"); root.innerHTML = "";
+  document.removeEventListener("keydown", escClose);
+}
+
+/* ------------------------------------------------------------------ 执行清理 */
+function doClean(sel, perm, dry){
+  closeModal();
+  const ids = new Set(sel.map(c=>c.id));
+  const tbody = document.getElementById("tbody");
+
+  // 行退出动画
+  if(tbody){
+    let k = 0;
+    sel.forEach(c => {
+      const tr = tbody.querySelector('tr[data-row="'+c.id+'"]');
+      if(tr){ tr.style.animationDelay = (k*26)+"ms"; tr.classList.add("out"); k++; }
+    });
+  }
+  const wait = RM ? 0 : Math.min(520, sel.length*26 + 260);
+
+  setTimeout(() => {
+    S.cleaned = sel.map(c => ({
+      id:"r"+(++CID), path:c.path, category:c.category, bytes:c.bytes,
+      status: dry ? "预演" : "已删除", method: perm ? "permanent" : "recycle"
+    })).concat(S.cleaned);
+
+    if(!dry){
+      // 真删：从候选里移除
+      const rm = new Set(sel.map(c=>c.id));
+      S.candidates = S.candidates.filter(c => !rm.has(c.id));
+      S.selected.clear();
+      // 磁盘可用空间变化
+      const freed = sel.reduce((a,c)=>a+c.bytes,0);
+      S.driveUsedGB = Math.max(0, S.driveUsedGB - freed/GB);
+      updDrive();
+    }
+    updStats(); renderCandidates(); renderReport(); renderDefense();
+    toast(dry
+      ? ("演练完成 · "+sel.length+" 项将被清理，合计 "+fmtSize(sel.reduce((a,c)=>a+c.bytes,0))+"（未实际删除）")
+      : ("清理完成 · "+sel.length+" 项已"+(perm?"永久删除":"移入回收站")+" · 释放 "+fmtSize(sel.reduce((a,c)=>a+c.bytes,0))),
+      dry ? "warn" : "ok");
+  }, wait);
+}
+
+function restoreOne(id){
+  const rec = S.cleaned.find(x=>x.id===id);
+  if(!rec) return;
+  rec.status = "已还原";
+  const src = ALL_CANDIDATES.find(c => c.path===rec.path);
+  if(src && RULE_BY_ID[src.ruleId].enabled && !S.candidates.some(c=>c.path===rec.path)){
+    S.candidates.push(Object.assign({}, src));
+    S.candidates.sort((a,b)=>b.bytes-a.bytes);
+  }
+  S.driveUsedGB += rec.bytes/GB;
+  updDrive(); updStats(); renderCandidates(); renderReport(); renderDefense();
+  toast("已还原「"+rec.path.split("\\").pop()+"」· 回到候选清单", "ok");
+}
+function updDrive(){
+  const used = S.driveUsedGB, total = 931, free = total-used;
+  document.getElementById("sf-free").textContent = "可用 " + free.toFixed(0) + " GB";
+  document.getElementById("sf-bar").style.width = (used/total*100).toFixed(1)+"%";
+  document.getElementById("sf-bar").classList.toggle("warn", used/total > 0.85);
+  document.querySelector(".side-foot .drive-row span").textContent = "已用 " + used.toFixed(0) + " GB";
+}
+
+/* ------------------------------------------------------------------ 绑定 */
+document.getElementById("btn-scan").addEventListener("click", runScan);
+document.getElementById("btn-report").addEventListener("click", () => { show("report"); renderReport(); });
+document.getElementById("drive").addEventListener("change", e => {
+  document.getElementById("sf-drive").textContent = e.target.value + ":\\";
+  S.scanned = false; S.selected.clear();
+  document.getElementById("scan-label").textContent = "开始扫描";
+  updStats(); renderCandidates(); renderReport();
+});
+document.getElementById("btn-all").addEventListener("click", () => { S.candidates.forEach(c=>S.selected.add(c.id)); renderCandidates(); updNavBadges(); });
+document.getElementById("btn-none").addEventListener("click", () => { S.selected.clear(); renderCandidates(); updNavBadges(); });
+document.getElementById("btn-invert").addEventListener("click", () => {
+  S.candidates.forEach(c => S.selected.has(c.id) ? S.selected.delete(c.id) : S.selected.add(c.id));
+  renderCandidates(); updNavBadges();
+});
+document.getElementById("dryrun").addEventListener("change", e => {
+  S.dryRun = e.target.checked;
+  toast(S.dryRun ? "已开启演练模式 · 清理走完整流程但不实际删除" : "已关闭演练模式 · 清理将真实执行", "warn");
+});
+document.getElementById("method").addEventListener("change", () => {
+  const perm = document.getElementById("method").value==="permanent";
+  if(perm) toast("已选永久删除 · 被清理的内容将无法通过回收站还原", "warn");
+  updActionBar();
+});
+document.getElementById("btn-clean").addEventListener("click", openConfirm);
+document.getElementById("btn-rules-all").addEventListener("click", () => { RULES.forEach(r=>r.enabled=true); rebuildCandidates(); S.selected.clear(); renderRules(); updNavBadges(); updStats(); renderCandidates(); renderReport(); renderDefense(); toast("已启用全部规则", "ok"); });
+document.getElementById("btn-rules-none").addEventListener("click", () => { RULES.forEach(r=>r.enabled=false); S.candidates=[]; S.selected.clear(); renderRules(); updNavBadges(); updStats(); renderCandidates(); renderReport(); renderDefense(); toast("已停用全部规则 · 候选清单为空", "warn"); });
+document.getElementById("nav").addEventListener("click", e => {
+  const b = e.target.closest(".nav-item"); if(!b) return;
+  show(b.getAttribute("data-view"));
+  if(curView==="report") renderReport();
+  if(curView==="defense") renderDefense();
+  if(curView==="rules") renderRules();
+});
+
+/* ------------------------------------------------------------------ 启动 */
+updNavBadges();
+updDrive();
+updStats();
+renderCandidates();
+renderDefense();
+renderReport();
+renderRules();
+show("candidates");
+setTimeout(runScan, 520);   // 打开即自动做一次只读扫描，展示完整流程
+</script>
+</body>
+</html>

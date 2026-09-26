@@ -21,6 +21,43 @@ SafeDriveCleaner 反过来做：**只有 `config/rules.default.json` 里显式�
 | **深度截断告警** | 若因 `-MaxDepth` 限制没能下探到底，会明确告警而不是静默漏报。 |
 | **四份留痕** | 控制台、日志、JSON 报告、HTML 报告，每一条操作都可事后审计。 |
 
+## 桌面应用
+
+除了命令行，本项目还带一个原生 Windows 窗口（WinForms），双击即可使用。
+
+**启动方式**
+
+| 方式 | 命令 / 文件 |
+|---|---|
+| 桌面入口 | 先跑一次 `.\tools\New-DesktopEntry.ps1`，桌面上会出现 `SafeDriveCleaner`，双击打开 |
+| 直接启动 | `app\SafeDriveCleaner.vbs`（由 Windows Script Host 执行，不闪黑框） |
+| 备用启动 | `app\SafeDriveCleaner.cmd`（`.vbs` 关联被改坏的机器上用） |
+| 界面自检 | `powershell -File app\SafeDriveCleaner.App.ps1 -SelfTest`（只构建界面不显示，用于无桌面环境验证） |
+
+**界面能做什么**：选盘符 → 扫描 → 看分类汇总与候选清单 → 勾选要清的项 → 清理。支持按分类筛选、全选/全不选；清理前必须输入 `YES` 放行（若选永久删除则须输入 `PERMANENT`）；完成后自动重扫，并可直接打开 HTML 报告。
+
+**界面在安全上做了什么保证**
+
+界面里**没有任何删除逻辑**。它只把勾选的**路径字符串**交给 `app\Worker.ps1`，而 Worker 会：
+
+1. 重新完整扫描一遍；
+2. 把界面传来的路径与引擎自己算出的候选集**取交集**；
+3. 交给 `Invoke-CleanerClean`，后者对每一条再重跑一遍完整保护裁决。
+
+由此得到一条硬性质：
+
+> **界面能做的只有"从引擎算出的候选里减掉一些"，永远无法让引擎去删一个它自己不会产生的目标。**
+
+这条性质由 `T11` 的 9 项断言守着 —— 包括"同时传入 `System32` 和受保护诱饵时，请求 3 项、实际命中 1 项，且后两者毫发无损"。
+
+**桌面入口为什么是 `.vbs` 而不是 `.lnk`**
+
+本机 PowerShell 的 COM 实例化被安全策略禁用，`WScript.Shell` 建不了快捷方式；而手写 `.lnk` 二进制在含中文的路径下不可靠，也无法在无 GUI 环境验证解析结果。`.vbs` 由 Windows Script Host 直接执行，不需要 COM。
+
+想要带箭头的原生快捷方式：右键桌面上那个文件 →「创建快捷方式」，再把图标指向 `%LOCALAPPDATA%\SafeDriveCleaner\app.ico`。注意**图标必须放在纯 ASCII 路径**——路径含中文时外壳解析不出来，会掉成默认图标。
+
+**图标**：`app\assets\app.ico`（蓝底 + 白色盾牌 + 对勾，7 个尺寸 16→256）由 `tools\make_icon.py` 生成，纯标准库手写 PNG + ICO 容器，不依赖 Pillow 也不联网；`tools\check_icon.py` 负责校验结构完整性，并采样确认图案真的画出来了（避免出现"结构正确但一片空白"的图标）。
+
 ## 快速开始
 
 ```powershell
@@ -144,7 +181,7 @@ SafeDriveCleaner 反过来做：**只有 `config/rules.default.json` 里显式�
 .\tests\Run-Tests.ps1
 ```
 
-`Run-Tests.ps1` 会构建一个模拟「D 盘」的沙箱（`tests\.sandbox`），内含 13 个应当被命中的缓存目标，以及 12 个**必须活下来**的诱饵（`.git`、`node_modules`、`Documents`、`.sqlite`、`.vhdx` 等），外加两个指向沙箱外的 junction。共 39 项断言，其中最关键的是：
+`Run-Tests.ps1` 会构建一个模拟「D 盘」的沙箱（`tests\.sandbox`），内含 13 个应当被命中的缓存目标，以及 12 个**必须活下来**的诱饵（`.git`、`node_modules`、`Documents`、`.sqlite`、`.vhdx` 等），外加两个指向沙箱外的 junction。共 48 项断言，其中最关键的是：
 
 - `T1` Scan 模式零删除零新增（比对完整文件映射）
 - `T3` 12 个受保护诱饵一个都没进候选
@@ -152,6 +189,7 @@ SafeDriveCleaner 反过来做：**只有 `config/rules.default.json` 里显式�
 - `T8c` 确实删除了白名单内容（防「空转也算通过」的假绿灯）
 - `T10d` 执行前复查会重跑保护裁决（防住扫描到执行之间路径被掉包）
 - `T10e` 被独占的文件被跳过且保留
+- `T11d` 界面传入越权路径时被并集逻辑丢弃（桌面应用的安全边界）
 
 ## 已知限制
 

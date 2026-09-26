@@ -79,6 +79,66 @@ foreach ($f in $jsonFiles) {
 }
 
 Write-Host ''
+Write-Host '=== 应用图标校验 ===' -ForegroundColor Cyan
+
+$icoPath = Join-Path $root 'app\assets\app.ico'
+$iconChecker = Join-Path $root 'tools\check_icon.py'
+
+# 注意：不能只看 Get-Command 能不能找到。
+# Windows 上 PATH 里的 python.exe 常常是 Microsoft Store 的占位桩，
+# 它存在、可执行，但一跑就打印"Python was not found"并以非 0 退出。
+# 必须真的执行一次并校验版本输出，否则会把"没有 Python"误判成"图标校验失败"。
+function Test-RealPython {
+    param([string]$Exe, [string[]]$Prefix)
+    try {
+        $out = & $Exe @Prefix --version 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { return $false }
+        return [bool]($out -match 'Python 3\.')
+    }
+    catch { return $false }
+}
+
+$python = $null
+$pythonArgs = @()
+foreach ($cand in @(
+        @{ Exe = 'python'; Prefix = @() },
+        @{ Exe = 'python3'; Prefix = @() },
+        @{ Exe = 'py'; Prefix = @('-3') }
+    )) {
+    $cmd = Get-Command $cand.Exe -ErrorAction SilentlyContinue
+    if (-not $cmd) { continue }
+    if (Test-RealPython -Exe $cmd.Source -Prefix $cand.Prefix) {
+        $python = $cmd.Source
+        $pythonArgs = $cand.Prefix
+        break
+    }
+}
+
+if (-not $python) {
+    Write-Host '  [SKIP] 未找到可用的 Python，跳过（该检查只依赖标准库，不影响其它检查）' -ForegroundColor DarkGray
+}
+elseif (-not (Test-Path -LiteralPath $icoPath)) {
+    $script:Err++
+    Write-Host '  [FAIL] 缺少 app\assets\app.ico' -ForegroundColor Red
+}
+elseif (-not (Test-Path -LiteralPath $iconChecker)) {
+    Write-Host '  [SKIP] 未找到 tools\check_icon.py' -ForegroundColor DarkGray
+}
+else {
+    $icoOut = & $python @pythonArgs $iconChecker $icoPath 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host '  [ OK ] app.ico 结构完整、图案存在' -ForegroundColor Green
+    }
+    else {
+        $script:Err++
+        Write-Host '  [FAIL] app.ico 校验未通过：' -ForegroundColor Red
+        foreach ($line in ($icoOut -split "`r?`n")) {
+            if ($line.Trim()) { Write-Host ('         ' + $line.Trim()) -ForegroundColor Red }
+        }
+    }
+}
+
+Write-Host ''
 if ($script:Err -eq 0) {
     Write-Host ('静态检查通过：' + $psFiles.Count + ' 个 ps1 + ' + $jsonFiles.Count + ' 个 json') -ForegroundColor Green
     exit 0
