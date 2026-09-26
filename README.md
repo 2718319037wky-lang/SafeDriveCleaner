@@ -144,12 +144,14 @@ SafeDriveCleaner 反过来做：**只有 `config/rules.default.json` 里显式�
 .\tests\Run-Tests.ps1
 ```
 
-`Run-Tests.ps1` 会构建一个模拟「D 盘」的沙箱（`tests\.sandbox`），内含 13 个应当被命中的缓存目标，以及 12 个**必须活下来**的诱饵（`.git`、`node_modules`、`Documents`、`.sqlite`、`.vhdx` 等），外加两个指向沙箱外的 junction。共 31 项断言，其中最关键的是：
+`Run-Tests.ps1` 会构建一个模拟「D 盘」的沙箱（`tests\.sandbox`），内含 13 个应当被命中的缓存目标，以及 12 个**必须活下来**的诱饵（`.git`、`node_modules`、`Documents`、`.sqlite`、`.vhdx` 等），外加两个指向沙箱外的 junction。共 39 项断言，其中最关键的是：
 
 - `T1` Scan 模式零删除零新增（比对完整文件映射）
 - `T3` 12 个受保护诱饵一个都没进候选
 - `T8b` 清理后沙箱外（junction 指向）的内容零变化
 - `T8c` 确实删除了白名单内容（防「空转也算通过」的假绿灯）
+- `T10d` 执行前复查会重跑保护裁决（防住扫描到执行之间路径被掉包）
+- `T10e` 被独占的文件被跳过且保留
 
 ## 已知限制
 

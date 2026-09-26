@@ -336,6 +336,95 @@ Test-Assert -Name 'T8d 未达年龄阈值的缓存清理后仍然存在' -Condit
 $keepMeThere = Test-Path -LiteralPath (Join-Path $sandbox 'KeepMe\keep.bin')
 Test-Assert -Name 'T8e 与规则无关的普通目录未被触碰' -Condition $keepMeThere -Detail 'KeepMe 被误删'
 
+# --- T10: 类型校验 / 过宽模式 / 执行前复查 -----------------------------------
+Write-Section 'T10 类型校验、过宽白名单告警与执行前复查（TOCTOU 防护）'
+
+# T10a/b: 规则声明的 targetType 必须与目标实际类型一致
+$vA = Test-CleanerTargetAllowed -Path (Join-Path $sandbox 'data\app.sqlite') `
+    -RootPath $sandbox -Protection $protection -TargetType 'directory'
+Test-Assert -Name 'T10a 规则声明目录、目标实际是文件 → 拒绝 (E_TYPE)' `
+    -Condition ($vA.Code -eq 'E_TYPE') -Detail ('实际 ' + $vA.Code + ' / ' + $vA.Reason)
+
+$vB = Test-CleanerTargetAllowed -Path (Join-Path $sandbox 'KeepMe') `
+    -RootPath $sandbox -Protection $protection -TargetType 'file'
+Test-Assert -Name 'T10b 规则声明文件、目标实际是目录 → 拒绝 (E_TYPE)' `
+    -Condition ($vB.Code -eq 'E_TYPE') -Detail ('实际 ' + $vB.Code + ' / ' + $vB.Reason)
+
+# T10c: 过宽白名单判定
+Test-Assert -Name 'T10c1 {ROOT}\** 被判为过宽模式' `
+    -Condition (Test-CleanerPatternIsOverlyBroad -Pattern ($sandbox + '\**') -RootPath $sandbox) `
+    -Detail '未识别出过宽模式'
+Test-Assert -Name 'T10c2 {ROOT}\**\npm-cache 不算过宽（有字面量锚点）' `
+    -Condition (-not (Test-CleanerPatternIsOverlyBroad -Pattern ($sandbox + '\**\npm-cache') -RootPath $sandbox)) `
+    -Detail '误报'
+Test-Assert -Name 'T10c3 纯字面路径不算过宽' `
+    -Condition (-not (Test-CleanerPatternIsOverlyBroad -Pattern ($sandbox + '\Temp') -RootPath $sandbox)) `
+    -Detail '误报'
+
+# T10d: 执行前复查必须重跑完整保护裁决
+$t10dir = Join-Path $sandbox 't10-protected-after-scan'
+New-Item -ItemType Directory -Path $t10dir -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $t10dir 'f.txt') -Value 'x' -Encoding UTF8
+
+$protBlock = [pscustomobject]@{
+    NeverTouchPaths         = (@($protection.NeverTouchPaths) + @($t10dir))
+    NeverTouchDirNames      = $protection.NeverTouchDirNames
+    NeverTouchPathSegments  = $protection.NeverTouchPathSegments
+    NeverTouchExtensions    = $protection.NeverTouchExtensions
+    NeverTouchExtExceptions = $protection.NeverTouchExtExceptions
+    PruneDirNames           = $protection.PruneDirNames
+}
+$candD = [pscustomobject]@{
+    RuleId = 't10'; RuleName = 'T10 复查'; Category = 'TEST'; Risk = 'low'
+    Path = $t10dir; Type = 'directory'; AgeDays = 1; MinAge = 0
+    Bytes = 1; Files = 1; Dirs = 0; Note = ''; IsSpecial = $false
+}
+$resD = Invoke-CleanerClean -Candidates @($candD) -DriveLetter 'T' -DeleteMethod 'Permanent' `
+    -RootPath $sandbox -Protection $protBlock
+$rD = $resD.Results[0]
+Test-Assert -Name 'T10d 执行前复查重跑保护裁决：新命中保护的候选被跳过且文件仍在' `
+    -Condition ($rD.Status -eq 'Skipped' -and (Test-Path -LiteralPath $t10dir)) `
+    -Detail ('status=' + $rD.Status + ' 仍存在=' + (Test-Path -LiteralPath $t10dir) + ' err=' + $rD.Error)
+
+# 对照：同一候选在不加保护时必须能被正常删除，否则 T10d 可能只是"工具空转"
+$t10dir2 = Join-Path $sandbox 't10-clean-target'
+New-Item -ItemType Directory -Path $t10dir2 -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $t10dir2 'f.txt') -Value 'x' -Encoding UTF8
+$candD2 = [pscustomobject]@{
+    RuleId = 't10'; RuleName = 'T10 复查'; Category = 'TEST'; Risk = 'low'
+    Path = $t10dir2; Type = 'directory'; AgeDays = 1; MinAge = 0
+    Bytes = 1; Files = 1; Dirs = 0; Note = ''; IsSpecial = $false
+}
+$resD2 = Invoke-CleanerClean -Candidates @($candD2) -DriveLetter 'T' -DeleteMethod 'Permanent' `
+    -RootPath $sandbox -Protection $protection
+$rD2 = $resD2.Results[0]
+Test-Assert -Name 'T10d2 对照：未命中保护的候选仍能正常删除（证明 T10d 不是空转）' `
+    -Condition ($rD2.Status -eq 'Deleted' -and -not (Test-Path -LiteralPath $t10dir2)) `
+    -Detail ('status=' + $rD2.Status + ' 仍存在=' + (Test-Path -LiteralPath $t10dir2) + ' err=' + $rD2.Error)
+
+# T10e: 被独占的文件应被跳过并保留
+$lockPath = Join-Path $sandbox 't10-locked.txt'
+Set-Content -LiteralPath $lockPath -Value 'x' -Encoding UTF8
+$fs = $null
+try {
+    $fs = [System.IO.File]::Open($lockPath,
+        [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    $candE = [pscustomobject]@{
+        RuleId = 't10'; RuleName = 'T10 占用'; Category = 'TEST'; Risk = 'low'
+        Path = $lockPath; Type = 'file'; AgeDays = 1; MinAge = 0
+        Bytes = 1; Files = 1; Dirs = 0; Note = ''; IsSpecial = $false
+    }
+    $resE = Invoke-CleanerClean -Candidates @($candE) -DriveLetter 'T' -DeleteMethod 'Permanent' `
+        -RootPath $sandbox -Protection $protection
+    $rE = $resE.Results[0]
+    Test-Assert -Name 'T10e 被其它进程独占的文件被跳过且保留下来' `
+        -Condition ($rE.Status -eq 'Skipped' -and (Test-Path -LiteralPath $lockPath)) `
+        -Detail ('status=' + $rE.Status + ' 仍存在=' + (Test-Path -LiteralPath $lockPath) + ' err=' + $rE.Error)
+}
+finally {
+    if ($fs) { $fs.Close(); $fs.Dispose() }
+}
+
 # --- 报告 -------------------------------------------------------------------
 Write-Section 'T9 报告产物'
 

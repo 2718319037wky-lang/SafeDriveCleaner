@@ -77,6 +77,15 @@ function Import-CleanerRules {
         }
         $r.patterns = $newPatterns
 
+        # 过宽白名单告警：{ROOT}\** 这类模式会匹配根目录下几乎所有条目，
+        # 白名单制的安全性依赖"每条规则都指向具体的东西"，这种写法等于放弃了这个前提。
+        foreach ($p in $r.patterns) {
+            if (Test-CleanerPatternIsOverlyBroad -Pattern $p -RootPath $RootPath) {
+                Write-CLog ('规则 [' + $r.id + '] 的模式 "' + $p +
+                    '" 除根目录外全是通配符，会匹配根目录下几乎所有条目。请确认这是本意；否则请加上字面量锚点（例如 \npm-cache）。') 'WARN'
+            }
+        }
+
         if (-not $r.PSObject.Properties['minAgeDays']) {
             $r | Add-Member -NotePropertyName 'minAgeDays' -NotePropertyValue 0 -Force
         }
@@ -170,6 +179,26 @@ function Test-CleanerTargetAllowed {
     # 2. 目标自身存在性
     $exists = Test-Path -LiteralPath $norm
     if (-not $exists) { return (& $deny 'E_NOTEXIST' '路径不存在') }
+
+    # 2b. 目标的"实际类型"必须与规则声明的 targetType 一致。
+    #     不做这一步的话，一条声明为 directory 的字面路径规则指向文件时会被放行，
+    #     结果是删掉一个文件却按 0 字节统计，回收站回退实现还会直接报错。
+    if ($TargetType -eq 'directory' -or $TargetType -eq 'file') {
+        $isContainer = $null
+        try {
+            $isContainer = [bool](Get-Item -LiteralPath $norm -Force -ErrorAction Stop).PSIsContainer
+        }
+        catch { $isContainer = $null }
+
+        if ($null -ne $isContainer) {
+            if ($TargetType -eq 'directory' -and -not $isContainer) {
+                return (& $deny 'E_TYPE' '规则声明为目录，但目标实际是文件')
+            }
+            if ($TargetType -eq 'file' -and $isContainer) {
+                return (& $deny 'E_TYPE' '规则声明为文件，但目标实际是目录')
+            }
+        }
+    }
 
     # 3. 具体保护路径（等于或位于其下）
     foreach ($p in $Protection.NeverTouchPaths) {

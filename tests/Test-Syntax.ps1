@@ -16,8 +16,17 @@ Write-Host ''
 Write-Host '=== PowerShell 语法检查 ===' -ForegroundColor Cyan
 
 # 注意：-Include 与 -LiteralPath 一起使用时会被忽略（实测返回全部文件），必须用 -Path
+# 同时排除运行期产物（沙箱、报告、期望清单）。它们都在 .gitignore 里，
+# 静态检查不应依赖本地生成物，否则一份残留的旧产物就能让 CI 红掉。
+function Test-IsGeneratedArtifact {
+    param([string]$FullName)
+    return ($FullName -like '*\.sandbox\*' -or
+        $FullName -like '*\.reports\*' -or
+        $FullName -like '*\sandbox-expectations.json')
+}
+
 $psFiles = @(Get-ChildItem -Path $root -Recurse -File -Filter '*.ps1' -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notlike '*\.sandbox\*' })
+        Where-Object { -not (Test-IsGeneratedArtifact $_.FullName) })
 
 foreach ($f in $psFiles) {
     $tokens = $null
@@ -56,7 +65,7 @@ Write-Host ''
 Write-Host '=== JSON 校验 ===' -ForegroundColor Cyan
 
 $jsonFiles = @(Get-ChildItem -Path $root -Recurse -File -Filter '*.json' -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notlike '*\.sandbox\*' })
+        Where-Object { -not (Test-IsGeneratedArtifact $_.FullName) })
 
 foreach ($f in $jsonFiles) {
     try {

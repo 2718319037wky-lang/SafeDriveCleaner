@@ -355,6 +355,33 @@ function Test-FileLocked {
     catch { return $true }
 }
 
+<#
+.SYNOPSIS
+    判断一条 glob 模式是否"除根目录外全是通配符"（例如 {ROOT}\**）。
+    这类模式会匹配根目录下的几乎所有条目，是最容易写出的过宽白名单，值得告警。
+#>
+function Test-CleanerPatternIsOverlyBroad {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Pattern,
+        [Parameter(Mandatory)][string]$RootPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Pattern)) { return $false }
+    if ($Pattern -notmatch '[\*\?]') { return $false }
+
+    $root = (Get-NormalizedPath $RootPath).TrimEnd('\')
+    $rest = $Pattern.Replace('/', '\')
+    if ($rest.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $rest = $rest.Substring($root.Length)
+    }
+    $rest = $rest.Trim('\')
+
+    # 去掉根目录前缀后，如果只剩通配符和分隔符，就是"匹配一切"
+    if ([string]::IsNullOrWhiteSpace($rest)) { return $false }
+    return [bool]($rest -match '^[\*\\\?]+$')
+}
+
 function Get-PathAgeDays {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path)

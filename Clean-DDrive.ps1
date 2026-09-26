@@ -127,7 +127,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 # ---------------------------------------------------------------------------
 # 加载模块
@@ -337,7 +337,8 @@ try {
         if ($confirmed) {
             Write-Host ''
             $cleanResult = Invoke-CleanerClean -Candidates $sorted -DriveLetter $driveLetter `
-                -DeleteMethod $DeleteMethod -DryRun:$DryRun
+                -DeleteMethod $DeleteMethod -DryRun:$DryRun `
+                -RootPath $root -Protection $protection
 
             $okN = 0; $failN = 0
             foreach ($r in $cleanResult.Results) {

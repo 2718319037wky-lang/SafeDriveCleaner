@@ -243,28 +243,36 @@ function Invoke-CleanerClean {
         [Parameter(Mandatory)][AllowEmptyCollection()]$Candidates,
         [Parameter(Mandatory)][string]$DriveLetter,
         [ValidateSet('Auto', 'RecycleBin', 'Permanent')][string]$DeleteMethod = 'Auto',
-        [switch]$DryRun
+        [switch]$DryRun,
+
+        # 可选：传入根目录与保护配置后，每一条在真正删除前都会重跑一遍完整保护裁决。
+        # 强烈建议传入 —— 这是防住"扫描到执行之间路径被掉包"的唯一手段。
+        [string]$RootPath,
+        $Protection
     )
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $results = New-Object System.Collections.Generic.List[object]
 
     $effectiveMethod = $DeleteMethod
-    if ($DeleteMethod -eq 'Auto') {
-        $probe = Get-CleanerDeleteStrategy -DeleteMethod 'Auto'
-        $effectiveMethod = if ($probe -eq 'Permanent') { 'Auto' } else { 'RecycleBin' }
-        Write-CLog ("删除策略：回收站（可还原），底层实现 = " + $probe) 'INFO'
-    }
-    elseif ($DeleteMethod -eq 'RecycleBin') {
-        $probe = Get-CleanerDeleteStrategy -DeleteMethod 'Auto'
-        Write-CLog ("删除策略：回收站（可还原），底层实现 = " + $probe) 'INFO'
-        if ($probe -eq 'Unavailable') {
-            Write-CLog '本机无法执行回收站删除，已中止（不会退化为永久删除）' 'ERROR'
-            return [pscustomobject]@{ Results = (ConvertTo-CleanerArray $results); DryRun = [bool]$DryRun; Method = 'Unavailable'; DurationSec = 0 }
-        }
+    if ($DeleteMethod -eq 'Permanent') {
+        Write-CLog '删除策略：永久删除（不可还原）' 'WARN'
     }
     else {
-        Write-CLog '删除策略：永久删除（不可还原）' 'WARN'
+        # Auto 与 RecycleBin 走同一条路径：先探测本机能力，探不到就中止。
+        # 绝不"退化为永久删除"——那是最不该发生的静默降级。
+        $probe = Get-CleanerDeleteStrategy -DeleteMethod 'Auto'
+        if ($probe -eq 'Unavailable') {
+            Write-CLog '本机无法执行回收站删除（SHFileOperation 与 Microsoft.VisualBasic 均不可用），已中止；不会退化为永久删除' 'ERROR'
+            return [pscustomobject]@{
+                Results     = (ConvertTo-CleanerArray $results)
+                DryRun      = [bool]$DryRun
+                Method      = 'Unavailable'
+                DurationSec = [math]::Round($sw.Elapsed.TotalSeconds, 1)
+            }
+        }
+        $effectiveMethod = 'RecycleBin'
+        Write-CLog ("删除策略：回收站（可还原），底层实现 = " + $probe) 'INFO'
     }
 
     $total = $Candidates.Count
@@ -291,7 +299,7 @@ function Invoke-CleanerClean {
             continue
         }
 
-        # 删除前再裁决一次：扫描与执行之间目录内容可能已变化
+        # 删除前复查一：路径是否仍然存在
         $exists = Test-Path -LiteralPath $c.Path
         if (-not $exists -and $c.Type -ne 'recycleBin') {
             $results.Add([pscustomobject]@{
@@ -299,6 +307,35 @@ function Invoke-CleanerClean {
                     Type = $c.Type; Bytes = [long]0; Status = 'Skipped'; Strategy = '-'
                     Error = '执行前复查发现路径已不存在'
                 })
+            continue
+        }
+
+        # 删除前复查二：整套保护裁决重跑一遍。
+        # 扫描到执行之间存在时间窗（用户确认、报告生成），期间路径可能被换成链接、
+        # 或被换成别的类型。只查"是否存在"不够 —— 这里把四道保护 + 类型校验全部重跑。
+        if ($Protection -and $RootPath -and $c.Type -ne 'recycleBin') {
+            $recheck = Test-CleanerTargetAllowed -Path $c.Path -RootPath $RootPath `
+                -Protection $Protection -TargetType $c.Type
+            if (-not $recheck.Allowed) {
+                $results.Add([pscustomobject]@{
+                        Path = $c.Path; RuleId = $c.RuleId; RuleName = $c.RuleName; Category = $c.Category
+                        Type = $c.Type; Bytes = $c.Bytes; Status = 'Skipped'; Strategy = '-'
+                        Error = ('执行前复查未通过保护检查[' + $recheck.Code + ']：' + $recheck.Reason)
+                    })
+                Write-CLog ('  跳过（执行前复查拦下）' + $c.Path + ' → ' + $recheck.Reason) 'WARN'
+                continue
+            }
+        }
+
+        # 删除前复查三：文件型目标若被其它进程独占，直接跳过并给出明确原因。
+        # 目录不做此项（逐文件试探成本太高，且目录内的锁会由删除接口报错兜住）。
+        if ($c.Type -eq 'file' -and (Test-FileLocked -Path $c.Path)) {
+            $results.Add([pscustomobject]@{
+                    Path = $c.Path; RuleId = $c.RuleId; RuleName = $c.RuleName; Category = $c.Category
+                    Type = $c.Type; Bytes = $c.Bytes; Status = 'Skipped'; Strategy = '-'
+                    Error = '文件被其它进程占用，已跳过'
+                })
+            Write-CLog ('  跳过（文件被占用）' + $c.Path) 'WARN'
             continue
         }
 
