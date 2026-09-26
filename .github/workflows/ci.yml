@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: 静态检查与安全断言测试
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 打印 PowerShell 版本
+        shell: powershell
+        run: $PSVersionTable | Out-String
+
+      # 静态检查不执行任何清理逻辑，可以放心在 CI 里跑。
+      # 它同时校验：PowerShell 语法、UTF-8 BOM、JSON 合法性。
+      # BOM 那一项很关键：Windows PowerShell 5.1 会把无 BOM 的 UTF-8 脚本按 ANSI
+      # 解码，中文字符串会变成乱码并引发语法错误。
+      - name: 静态检查（语法 / BOM / JSON）
+        shell: powershell
+        run: |
+          .\tests\Test-Syntax.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # 安全断言测试：构建沙箱目录树，完整跑扫描 / 预演 / 删除。
+      # 沙箱是测试自己创建的临时目录，删除仅限沙箱内部，不触及真实磁盘数据。
+      - name: 安全断言测试
+        shell: powershell
+        run: |
+          .\tests\Run-Tests.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Content .\tests\.transcript.txt -Encoding UTF8 | Write-Host
+
+      - name: 测试失败时上传 transcript
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-transcript
+          path: tests/.transcript.txt
+          if-no-files-found: ignore
+
+  lint:
+    name: PSScriptAnalyzer
+    runs-on: windows-latest
+    continue-on-error: true
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 PSScriptAnalyzer
+        shell: powershell
+        run: Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: 运行 PSScriptAnalyzer
+        shell: powershell
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error, Warning -ExcludeRule PSAvoidUsingWriteHost,PSUseShouldProcessForStateChangingFunctions
+          $results | Format-Table -AutoSize | Out-String | Write-Host
+          if ($results) { Write-Host "PSScriptAnalyzer 发现 $($results.Count) 条提示（非阻塞）" }

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "_comment": [
+    "测试专用附加规则：通过 -LocalRulesPath 叠加到默认规则之上，用于验证 P_LINK 拦截链路。",
+    "这里故意用字面路径直接指向一个 junction，模拟'用户手写规则指向了链接'的最坏情况。"
+  ],
+  "rules": [
+    {
+      "id": "link-literal-test",
+      "name": "链接直连测试（故意指向 junction）",
+      "category": "测试",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 0,
+      "risk": "high",
+      "patterns": [
+        "{ROOT}\\npm-cache"
+      ],
+      "note": "该路径是目录联接，必须被 P_LINK 拦下，绝不能跟随链接删除沙箱外的内容。"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+# 统一换行符为 LF，避免不同平台 checkout 后出现无意义的整文件 diff
+* text=auto eol=lf
+
+# PowerShell 脚本必须保持 UTF-8 with BOM 的编码（由 tests/Test-Syntax.ps1 校验），
+# 这里只约束换行符，不改变编码。
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+
+# 二进制产物不做换行符转换
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.vhdx binary

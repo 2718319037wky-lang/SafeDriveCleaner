@@ -1,0 +1,250 @@
+{
+  "schemaVersion": "1.0",
+  "_comment": [
+    "白名单规则：只有本文件中显式列出的路径才会进入清理候选，其它一切文件都不会被触碰。",
+    "这是「白名单制」而非「黑名单制」——不存在「没被排除所以被删掉」的情况。",
+    "占位符：{ROOT} 目标盘根目录；{DRIVE} 目标盘符（不含冒号），例如 D",
+    "        环境变量（%TEMP% 等）同样可用。",
+    "",
+    "字段说明：",
+    "  id          规则唯一标识，可用于 -IncludeRule / -ExcludeRule 定向筛选",
+    "  name        展示名称",
+    "  category    分类，可用于 -Categories 筛选",
+    "  enabled     是否启用（false 表示默认不参与）",
+    "  targetType  directory | file | recycleBin",
+    "  minAgeDays  只清理「最后修改时间早于 N 天」的项目，防止误删正在使用的缓存",
+    "  risk        风险提示：low（纯缓存）| medium（会导致重新下载/重建索引）| high",
+    "  patterns    glob 模式数组，支持 * ? **（** 表示跨任意层级目录）",
+    "  note        说明与失效后果"
+  ],
+
+  "rules": [
+    {
+      "id": "sys-temp-drive",
+      "name": "本盘系统与全局临时目录",
+      "category": "系统临时",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 3,
+      "risk": "low",
+      "patterns": [
+        "{ROOT}\\Temp",
+        "{ROOT}\\temp",
+        "{ROOT}\\tmp",
+        "{ROOT}\\Windows\\Temp"
+      ],
+      "note": "删除后系统会自动重建。跳过 3 天内修改过的内容，避免影响正在运行的程序。"
+    },
+    {
+      "id": "sys-crashdumps",
+      "name": "崩溃转储文件",
+      "category": "崩溃转储",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 3,
+      "risk": "low",
+      "patterns": [
+        "{ROOT}\\CrashDumps",
+        "{ROOT}\\**\\CrashDumps",
+        "{ROOT}\\Windows\\LiveKernelReports"
+      ],
+      "note": "程序崩溃产生的内存转储。若你正在排查崩溃问题，请先用 -ExcludeRule sys-crashdumps 跳过。"
+    },
+    {
+      "id": "sys-thumbnail-cache",
+      "name": "缩略图与图标缓存文件",
+      "category": "缩略图缓存",
+      "enabled": true,
+      "targetType": "file",
+      "minAgeDays": 1,
+      "risk": "low",
+      "patterns": [
+        "{ROOT}\\**\\Thumbs.db",
+        "{ROOT}\\**\\ehthumbs.db",
+        "{ROOT}\\**\\IconCache.db"
+      ],
+      "note": "资源管理器缩略图索引，删除后首次浏览文件夹时会自动重建（可能短暂变慢）。"
+    },
+    {
+      "id": "pkg-node",
+      "name": "npm / yarn / pnpm 缓存",
+      "category": "包管理器缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 7,
+      "risk": "medium",
+      "patterns": [
+        "{ROOT}\\**\\npm-cache",
+        "{ROOT}\\**\\npm-cache\\_cacache",
+        "{ROOT}\\**\\.npm\\_cacache",
+        "{ROOT}\\**\\yarn-cache",
+        "{ROOT}\\**\\Yarn\\Cache",
+        "{ROOT}\\**\\.yarn\\cache",
+        "{ROOT}\\**\\pnpm-store",
+        "{ROOT}\\**\\.pnpm-store"
+      ],
+      "note": "仅缓存，不影响 node_modules。删除后下次 npm/yarn/pnpm install 需要重新下载。"
+    },
+    {
+      "id": "pkg-python",
+      "name": "pip / conda / poetry / uv 缓存",
+      "category": "包管理器缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 7,
+      "risk": "medium",
+      "patterns": [
+        "{ROOT}\\**\\pip\\cache",
+        "{ROOT}\\**\\pip-cache",
+        "{ROOT}\\**\\conda\\pkgs",
+        "{ROOT}\\**\\_conda_pkgs",
+        "{ROOT}\\**\\poetry\\cache",
+        "{ROOT}\\**\\pypoetry\\Cache",
+        "{ROOT}\\**\\uv\\cache"
+      ],
+      "note": "Python 包下载缓存，删除后需重新下载（用 pip cache purge 效果相同）。"
+    },
+    {
+      "id": "pkg-jvm",
+      "name": "Gradle / Maven 缓存",
+      "category": "包管理器缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 30,
+      "risk": "medium",
+      "patterns": [
+        "{ROOT}\\**\\.gradle\\caches",
+        "{ROOT}\\**\\.gradle\\daemon",
+        "{ROOT}\\**\\.m2\\repository"
+      ],
+      "note": "Java 构建依赖缓存。删除后下一次构建会重新联网下载，耗时较长；30 天阈值已尽量保守。"
+    },
+    {
+      "id": "pkg-dotnet",
+      "name": "NuGet 包缓存",
+      "category": "包管理器缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 30,
+      "risk": "medium",
+      "patterns": [
+        "{ROOT}\\**\\.nuget\\packages",
+        "{ROOT}\\**\\NuGet\\v3-cache"
+      ],
+      "note": ".NET 依赖缓存，删除后下次还原需重新下载。"
+    },
+    {
+      "id": "pkg-misc",
+      "name": "Cargo / Go / Composer 缓存",
+      "category": "包管理器缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 30,
+      "risk": "medium",
+      "patterns": [
+        "{ROOT}\\**\\.cargo\\registry\\cache",
+        "{ROOT}\\**\\go\\pkg\\mod\\cache\\download",
+        "{ROOT}\\**\\Composer\\cache"
+      ],
+      "note": "Rust / Go / PHP 的依赖下载缓存。"
+    },
+    {
+      "id": "ide-jetbrains",
+      "name": "JetBrains IDE 缓存 / 日志 / 索引",
+      "category": "IDE 缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 7,
+      "risk": "medium",
+      "patterns": [
+        "{ROOT}\\**\\JetBrains\\*\\caches",
+        "{ROOT}\\**\\JetBrains\\*\\index",
+        "{ROOT}\\**\\JetBrains\\*\\log",
+        "{ROOT}\\**\\JetBrains\\*\\tmp"
+      ],
+      "note": "IDEA / PyCharm / WebStorm 等的缓存与索引，删除后首次打开项目会重新建立索引。"
+    },
+    {
+      "id": "ide-vscode",
+      "name": "VS Code 缓存与日志",
+      "category": "IDE 缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 3,
+      "risk": "low",
+      "patterns": [
+        "{ROOT}\\**\\Code\\CachedData",
+        "{ROOT}\\**\\Code\\CachedExtensions",
+        "{ROOT}\\**\\Code\\Cache",
+        "{ROOT}\\**\\Code\\Code Cache",
+        "{ROOT}\\**\\Code\\GPUCache",
+        "{ROOT}\\**\\Code\\logs"
+      ],
+      "note": "不触碰 User\\settings.json、User\\keybindings.json 与 User\\History，只清缓存与日志。"
+    },
+    {
+      "id": "ide-visualstudio",
+      "name": "Visual Studio 组件缓存",
+      "category": "IDE 缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 7,
+      "risk": "low",
+      "patterns": [
+        "{ROOT}\\**\\Microsoft\\VisualStudio\\*\\ComponentModelCache",
+        "{ROOT}\\**\\Microsoft\\VisualStudio\\*\\FileCache"
+      ],
+      "note": "VS 的组件模型缓存，删除后首次启动会稍慢。"
+    },
+    {
+      "id": "browser-chromium",
+      "name": "Chromium 内核浏览器缓存",
+      "category": "浏览器缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 1,
+      "risk": "low",
+      "patterns": [
+        "{ROOT}\\**\\Google\\Chrome\\User Data\\*\\Cache",
+        "{ROOT}\\**\\Google\\Chrome\\User Data\\*\\Code Cache",
+        "{ROOT}\\**\\Google\\Chrome\\User Data\\*\\GPUCache",
+        "{ROOT}\\**\\Google\\Chrome\\User Data\\*\\Media Cache",
+        "{ROOT}\\**\\Google\\Chrome\\User Data\\*\\Service Worker\\CacheStorage",
+        "{ROOT}\\**\\Microsoft\\Edge\\User Data\\*\\Cache",
+        "{ROOT}\\**\\Microsoft\\Edge\\User Data\\*\\Code Cache",
+        "{ROOT}\\**\\Microsoft\\Edge\\User Data\\*\\GPUCache",
+        "{ROOT}\\**\\Microsoft\\Edge\\User Data\\*\\Service Worker\\CacheStorage",
+        "{ROOT}\\**\\BraveSoftware\\Brave-Browser\\User Data\\*\\Cache",
+        "{ROOT}\\**\\BraveSoftware\\Brave-Browser\\User Data\\*\\Code Cache",
+        "{ROOT}\\**\\Chromium\\User Data\\*\\Cache"
+      ],
+      "note": "只清网页缓存，不动 Cookie、书签、密码、历史记录（这些在 User Data 根目录与 Default 下的其它文件里）。"
+    },
+    {
+      "id": "browser-firefox",
+      "name": "Firefox 缓存",
+      "category": "浏览器缓存",
+      "enabled": true,
+      "targetType": "directory",
+      "minAgeDays": 1,
+      "risk": "low",
+      "patterns": [
+        "{ROOT}\\**\\Mozilla\\Firefox\\Profiles\\*\\cache2",
+        "{ROOT}\\**\\Mozilla\\Firefox\\Profiles\\*\\startupCache",
+        "{ROOT}\\**\\Mozilla\\Firefox\\Profiles\\*\\shader-cache"
+      ],
+      "note": "只清 Firefox 缓存目录，不动 profile 中的 places.sqlite、logins.json 等数据文件。"
+    },
+    {
+      "id": "recycle-bin",
+      "name": "本盘回收站",
+      "category": "回收站",
+      "enabled": true,
+      "targetType": "recycleBin",
+      "minAgeDays": 0,
+      "risk": "high",
+      "patterns": [],
+      "note": "清空指定盘的回收站。回收站内容本身已是「已删除文件」，但仍可能是你打算还原的文件——确认前请先打开回收站看一眼。"
+    }
+  ]
+}

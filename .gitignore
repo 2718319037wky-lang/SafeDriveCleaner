@@ -1,0 +1,15 @@
+# 忽略产物与本地配置
+reports/
+tests/.reports/
+tests/.sandbox/
+tests/.outside-target/
+tests/.linked-target/
+tests/.transcript.txt
+tests/sandbox-expectations.json
+
+# 本地规则覆盖（因人而异，不该提交）
+config/rules.local.json
+
+# 日志与临时文件
+*.log
+*.tmp

@@ -1,0 +1,118 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SafeDriveCleaner 报告 - D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel-2:#fbfbfc; --border:#e3e6ea;
+  --text:#1f2328; --muted:#6b7280; --accent:#2563eb;
+  --ok:#047857; --warn:#b45309; --danger:#b91c1c; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#14171a; --panel:#1b1f24; --panel-2:#20252b; --border:#2e343b;
+         --text:#e6e9ee; --muted:#9aa3ad; --accent:#6ea8fe;
+         --ok:#4ade80; --warn:#fbbf24; --danger:#f87171; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+  font-size:14px;line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 64px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:6px}
+h1{font-size:22px;margin:0;letter-spacing:.2px}
+.badge{font-size:12px;padding:3px 10px;border-radius:999px;color:#fff;background:var(--accent)}
+.badge.mode{background:#047857}
+.meta{color:var(--muted);font-size:12.5px;margin:0 0 22px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:26px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.card .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+.card .v{font-size:22px;font-weight:650;letter-spacing:.2px}
+.card .v.accent{color:var(--accent)}
+.card .v.ok{color:var(--ok)}
+.card .v.warn{color:var(--warn)}
+section{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:18px 20px;margin-bottom:20px}
+h2{font-size:15px;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+h2 .sub{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.path{font-family:var(--mono);font-size:12px;word-break:break-all}
+.risk{font-size:11.5px;padding:1px 7px;border-radius:6px;white-space:nowrap}
+.risk.low{background:rgba(4,120,87,.12);color:var(--ok)}
+.risk.medium{background:rgba(180,83,9,.14);color:var(--warn)}
+.risk.high,.risk.unknown{background:rgba(185,28,28,.14);color:var(--danger)}
+.empty{color:var(--muted);font-size:13px;padding:6px 0}
+.note{color:var(--muted);font-size:12.5px}
+ul.tips{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:13px}
+ul.tips li{margin:4px 0}
+code{font-family:var(--mono);background:var(--panel-2);border:1px solid var(--border);
+  border-radius:5px;padding:1px 5px;font-size:12px}
+details{margin-top:6px}
+summary{cursor:pointer;color:var(--accent);font-size:13px}
+.bar{height:6px;border-radius:4px;background:var(--accent);min-width:2px;display:inline-block;vertical-align:middle}
+footer{color:var(--muted);font-size:12px;text-align:center;margin-top:26px}
+</style></head><body><div class="wrap">
+<header>
+<h1>SafeDriveCleaner 磁盘清理报告</h1>
+<span class="badge mode">扫描模式（Scan / 只读）</span>
+<span class="badge">v1.0.0</span>
+</header>
+<p class="meta">目标根目录 <code>D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\</code> · 生成时间 2026-09-26 22:26:24 · 主机 LAPTOP-BSLEDQF4 · 扫描最大深度 10 · 扫描耗时 0.4 秒</p>
+<div class="cards">
+<div class="card"><div class="k">可清理总量</div><div class="v accent">552.00 KB</div></div>
+<div class="card"><div class="k">候选条目</div><div class="v">13</div></div>
+<div class="card"><div class="k">分类数</div><div class="v">6</div></div>
+<div class="card"><div class="k">保护规则拦截</div><div class="v ok">0</div></div>
+<div class="card"><div class="k">链接跳过</div><div class="v ok">2</div></div>
+<div class="card"><div class="k">索引目录 / 文件</div><div class="v">44 / 25</div></div>
+</div>
+<section><h2>分类汇总<span class="sub">按可清理体积降序</span></h2>
+<table><thead><tr><th>分类</th><th class="num">条目数</th><th class="num">体积</th><th>占比</th><th>风险</th></tr></thead><tbody>
+<tr><td>浏览器缓存</td><td class="num">2</td><td class="num">176.00 KB</td><td><span class="bar" style="width:160px"></span></td><td><span class="risk low">low</span></td></tr>
+<tr><td>包管理器缓存</td><td class="num">3</td><td class="num">152.00 KB</td><td><span class="bar" style="width:138px"></span></td><td><span class="risk medium">medium</span></td></tr>
+<tr><td>IDE 缓存</td><td class="num">3</td><td class="num">120.00 KB</td><td><span class="bar" style="width:109px"></span></td><td><span class="risk medium">medium</span></td></tr>
+<tr><td>系统临时</td><td class="num">2</td><td class="num">72.00 KB</td><td><span class="bar" style="width:65px"></span></td><td><span class="risk low">low</span></td></tr>
+<tr><td>崩溃转储</td><td class="num">1</td><td class="num">20.00 KB</td><td><span class="bar" style="width:18px"></span></td><td><span class="risk low">low</span></td></tr>
+<tr><td>缩略图缓存</td><td class="num">2</td><td class="num">12.00 KB</td><td><span class="bar" style="width:11px"></span></td><td><span class="risk low">low</span></td></tr>
+</tbody></table>
+</section>
+<section><h2>清理明细<span class="sub">按体积降序，前 200 条</span></h2>
+<table><thead><tr><th>路径</th><th>分类</th><th class="num">体积</th><th class="num">文件数</th><th class="num">未使用天数</th></tr></thead><tbody>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Users\tester\AppData\Local\Google\Chrome\User Data\Default\Cache</td><td>浏览器缓存</td><td class="num">136.00 KB</td><td class="num">2</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Users\tester\AppData\Roaming\JetBrains\IntelliJIdea2024.1\caches</td><td>IDE 缓存</td><td class="num">72.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\cache\npm-cache</td><td>包管理器缓存</td><td class="num">64.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Temp</td><td>系统临时</td><td class="num">48.00 KB</td><td class="num">2</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Users\tester\AppData\Roaming\npm-cache</td><td>包管理器缓存</td><td class="num">48.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Users\tester\AppData\Local\Microsoft\Edge\User Data\Default\Cache</td><td>浏览器缓存</td><td class="num">40.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Users\tester\AppData\Local\pnpm-store</td><td>包管理器缓存</td><td class="num">40.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Tools\Code\CachedData</td><td>IDE 缓存</td><td class="num">36.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Windows\Temp</td><td>系统临时</td><td class="num">24.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\CrashDumps</td><td>崩溃转储</td><td class="num">20.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Users\tester\AppData\Roaming\JetBrains\IntelliJIdea2024.1\log</td><td>IDE 缓存</td><td class="num">12.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Pictures-Thumbs\Thumbs.db</td><td>缩略图缓存</td><td class="num">8.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\Users\tester\AppData\Local\ehthumbs.db</td><td>缩略图缓存</td><td class="num">4.00 KB</td><td class="num">1</td><td class="num">45</td></tr>
+</tbody></table>
+</section>
+<section><h2>因"仍在使用中"而跳过<span class="sub">共 1 项</span></h2>
+<details><summary>展开查看</summary><table><thead><tr><th>路径</th><th>规则</th><th>说明</th></tr></thead><tbody>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\fresh\npm-cache</td><td>npm / yarn / pnpm 缓存</td><td class="note">最后修改于 0 天前，未达到 7 天阈值，判定为仍在使用中</td></tr>
+</tbody></table></details></section>
+<section><h2>安全防线记录<span class="sub">这些路径被保护规则拦下，永远不会被删除</span></h2>
+<table><thead><tr><th>路径</th><th>规则</th><th>拦截原因</th></tr></thead><tbody>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\linked</td><td>-</td><td class="note">遍历时跳过目录联接/符号链接，绝不穿过链接删除内容</td></tr>
+<tr><td class="path">D:\代码项目\2026-09-26-21-58-43\SafeDriveCleaner\tests\.sandbox\npm-cache</td><td>-</td><td class="note">遍历时跳过目录联接/符号链接，绝不穿过链接删除内容</td></tr>
+</tbody></table>
+</section>
+<section><h2>还原与安全说明</h2><ul class="tips">
+<li>默认删除方式为<strong>移入回收站</strong>，可在资源管理器回收站中逐个还原。</li>
+<li>本工具采用<strong>白名单制</strong>：只有 <code>config/rules.default.json</code> 中显式列出的路径才会成为候选，不存在"因为没被排除所以被删掉"的情况。</li>
+<li>四道保护拦截（具体路径 / 目录名 / 路径段 / 扩展名）不设绕过机制，规则写错也不会删到受保护内容。</li>
+<li>目录联接与符号链接一律不跟随，避免通过 D 盘的链接误删其它盘的文件。</li>
+<li>执行前的完整命令与每条操作都记录在 <code>reports\*.log</code>，可事后审计。</li>
+</ul></section>
+<footer>SafeDriveCleaner v1.0.0 · 报告由工具自动生成，请勿手工修改</footer>
+</div></body></html>
+
