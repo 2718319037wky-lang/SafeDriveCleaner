@@ -2,11 +2,11 @@
 
 本项目的所有重要变更都记录在此文件。
 
-## [1.1.3] - 2026-09-27
+## [1.1.2] - 2026-09-27
 
-把现有桌面 App 打包成「下载即用」的分发包 + 一键启动 + 桌面入口，附用户视角的 README-APP.md。
+### 打包成「下载即用」的桌面 App 分发包
 
-### 新增
+把现有桌面 App 打包成分发 zip + 一键启动 + 桌面入口，附用户视角的 README-APP.md。
 
 - **`tools\make_dist.ps1`** —— 打包工具：拷贝必备文件到 `dist\stage-App-v<Version>\`、用 `System.IO.Compression.ZipFile` 压成 `SafeDriveCleaner-App-v<Version>.zip`、自检（解压列文件、所有 .ps1 BOM、app.ico 7 尺寸齐全）、输出 SHA256。`dist\` 加入 `.gitignore`。
 - **`SafeDriveCleaner.cmd`**（zip 根目录）—— wrapper：从解压根目录双击即用，默认 `-Drive D -AutoScan`，找不到 PowerShell 时弹错说明。
@@ -14,7 +14,7 @@
 - **`README-APP.md`** —— 用户视角：三步上手、选盘、还原、系统需求、卸载、排错表。
 - **`app\assets\app.ico`** —— 盾牌+对勾图标，7 尺寸（16/24/32/48/64/128/256），纯标准库 PNG/ICO 生成器（`tools\make_icon.py`）。
 
-### 修复
+**修复**
 
 - **`app\SafeDriveCleaner.vbs`** —— 原本是简单的复制粘贴式桌面入口，**有 bug**：启动时 `here = fso.GetParentFolderName(WScript.ScriptFullName)` 拿到的是桌面目录，**根本找不到 `SafeDriveCleaner.App.ps1`**。改为 vbs 模板 + 路径注入：`{{SDC_APP_DIR}}` 占位符由 `New-DesktopEntry.ps1` 替换为绝对路径。
 - **`app\SafeDriveCleaner.cmd` / `app\SafeDriveCleaner.vbs`** —— 显式传 `-Drive D -AutoScan` 让「下载即用」的行为在启动器里明确；找不到 PowerShell / App.ps1 时弹 msgbox 而不是闪一下就走。
@@ -22,9 +22,7 @@
 - **`tests\Test-Syntax.ps1`** —— `Test-IsGeneratedArtifact` 加上 `dist\stage-*` 排除：make_dist 拷出的副本与源码逐字节一致，不该让版本号唯一性检查误判成「两处」。
 - **`tests\Test-Ui.ps1`** —— jsdom 缺失时本意是 SKIP，但脚本里 `$ErrorActionPreference='Stop'` 让 `node -e "require.resolve('jsdom')"` 的 stderr 触发 NativeCommandError 直接 exit 1。改为探针时临时切到 `'Continue'`，让 jsdom 缺失正确走 SKIP。
 
-### 安全断言
-
-不变：55/55 全过（Run-Tests），含 v1.1.2 的占比断言 T9h–T9k3。
+### 新增「可清理容量占该盘总容量的百分比」指标
 
 新增「可清理容量占该盘总容量的百分比」指标，四处口径一致：同一组公共助手函数算出，不各写一份。
 
