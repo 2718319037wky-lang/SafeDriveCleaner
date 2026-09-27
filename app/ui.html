@@ -299,6 +299,45 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixe
 .switch input:checked{background:var(--accent)}
 .switch input:checked::after{transform:translateX(14px)}
 
+/* 盘符选择器（自动检测） */
+.dpick{position:relative}
+.dpick-btn{
+  height:32px;border:1px solid var(--border-2);border-radius:var(--r-s);background:var(--panel);
+  padding:0 8px 0 10px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;
+  transition:border-color .15s,box-shadow .15s,background .15s;max-width:236px;
+}
+.dpick-btn:hover:not(:disabled){border-color:#C3CAD3;background:var(--sub)}
+.dpick-btn[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.dpick-btn:disabled{background:var(--sub);color:var(--muted);cursor:not-allowed}
+.dpick-btn b{font-family:var(--mono);font-size:12.5px;font-weight:640;letter-spacing:.01em}
+.dpick-btn .kind{font-size:11px;color:var(--muted);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpick-btn .cv{color:var(--faint);flex:none;transition:transform .18s var(--ease)}
+.dpick-btn[aria-expanded="true"] .cv{transform:rotate(180deg)}
+
+.dpick-pop{
+  position:absolute;top:calc(100% + 7px);right:0;z-index:55;width:330px;
+  background:var(--panel);border:1px solid var(--border-2);border-radius:var(--r-l);
+  box-shadow:var(--sh-3);overflow:hidden;animation:modIn .18s var(--ease) both;
+}
+.dpick-pop[hidden]{display:none}
+.dpick-hd{padding:11px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;background:var(--sub)}
+.dpick-hd .t{font-size:12px;font-weight:620;flex:1;min-width:0}
+.dpick-hd .t small{display:block;font-weight:500;color:var(--muted);font-size:10.5px;margin-top:2px}
+.dpick-list{max-height:268px;overflow-y:auto;padding:5px}
+.ditem{width:100%;display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:var(--r-s);text-align:left;transition:background .14s}
+.ditem:hover{background:var(--sub)}
+.ditem.on{background:var(--accent-soft)}
+.ditem-ic{width:30px;height:30px;border-radius:8px;background:var(--sub);border:1px solid var(--border);display:grid;place-items:center;color:var(--muted);flex:none}
+.ditem.on .ditem-ic{background:#fff;border-color:#CFDDFB;color:var(--accent)}
+.ditem-bd{flex:1;min-width:0}
+.ditem-l{display:flex;align-items:center;gap:7px}
+.ditem-l b{font-family:var(--mono);font-size:13px;font-weight:640}
+.ditem-m{display:block;font-size:11px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ditem-ck{color:var(--accent);flex:none;opacity:0}
+.ditem.on .ditem-ck{opacity:1}
+.dpick-ft{padding:9px 13px;border-top:1px solid var(--border);font-size:10.5px;color:var(--faint);line-height:1.6;background:var(--sub)}
+.dpick-ft b{font-weight:620;color:var(--text-2)}
+
 /* 空状态 */
 .empty{padding:58px 24px;text-align:center;color:var(--muted)}
 .empty-ic{width:52px;height:52px;border-radius:14px;background:var(--sub);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto 14px;color:var(--faint)}
@@ -484,7 +523,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixe
       </div>
       <div class="brand-txt">
         <div class="brand-name">SafeDriveCleaner</div>
-        <div class="brand-ver">白名单引擎 · v1.1.0</div>
+        <div class="brand-ver">白名单引擎 · v1.1.2</div>
       </div>
     </div>
 
@@ -517,7 +556,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixe
     <div class="side-foot">
       <div class="drive-row"><b id="sf-drive">D:\</b><span id="sf-free">可用 319 GB</span></div>
       <div class="drive-bar"><i id="sf-bar" style="width:65.7%"></i></div>
-      <div class="drive-row" style="font-size:11px;color:var(--faint)"><span id="sf-used">已用 612 GB</span><span>931 GB</span></div>
+      <div class="drive-row" style="font-size:11px;color:var(--faint)"><span id="sf-used">已用 612 GB</span><span id="sf-total">931 GB</span></div>
+      <div class="drive-row" style="font-size:11px;color:var(--faint)"><span>可清理占本盘</span><span id="sf-share">—</span></div>
     </div>
   </aside>
 
@@ -532,9 +572,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixe
       <div class="tb-spacer"></div>
       <div class="tb-group">
         <span class="fl">驱动器</span>
-        <select class="field" id="drive" style="width:74px">
-          <option>D</option><option>C</option><option>E</option>
-        </select>
+        <div class="dpick">
+          <button class="dpick-btn" id="dpickBtn" aria-haspopup="listbox" aria-expanded="false" title="自动检测本机可用驱动器">
+            <span id="dpickLabel">检测中…</span>
+            <svg class="cv" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="dpick-pop" id="dpickPop" hidden role="listbox" aria-label="检测到的可用驱动器"></div>
+        </div>
         <span class="fl">深度</span>
         <select class="field" id="depth" style="width:64px">
           <option>6</option><option selected>10</option><option>14</option><option>20</option>
@@ -701,6 +745,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixe
 <div class="modal-root" id="modalRoot"></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
+<!-- 同目录若存在 drives.js（由 app\Detect-Drives.ps1 生成），先在这里载入。
+     普通脚本标签不受 CORS 限制，所以「直接双击打开本页」时这一路依然有效；
+     而 fetch('drives.json') 在 file:// 下会被浏览器拒掉。文件不存在时只是 404，不影响运行。 -->
+<script src="drives.js"></script>
 <script>
 "use strict";
 /* =========================================================================
@@ -753,6 +801,8 @@ const CAT_CLASS = {
 function catTag(c){ return '<span class="tag '+(CAT_CLASS[c]||"c7")+'">'+esc(c)+'</span>'; }
 const RISK_TXT = {low:"低", medium:"中", high:"高"};
 function riskTag(r){ return '<span class="risk '+r+'"><i></i>'+RISK_TXT[r]+'</span>'; }
+/* 作废某个元素上仍在飞行中的数字滚动，防止旧动画稍后把新值覆盖回去 */
+function cancelCountUp(el){ if(el) el._t = (el._t || 0) + 1; }
 function countUp(el, to, fmt, dur){
   if(!el) return;
   dur = dur || 850;
@@ -760,8 +810,14 @@ function countUp(el, to, fmt, dur){
   const from = (typeof el._v === "number" && isFinite(el._v)) ? el._v : 0;
   el._v = to;
   if(RM || from === to){ el.textContent = fmt(to); return; }
+  // 连续调用时用 token 作废旧循环，避免旧动画覆盖新值
+  const token = (el._t = (el._t || 0) + 1);
+  // 终值兜底：rAF 在后台标签页会被暂停，在无头虚拟时钟下也可能整段不触发 ——
+  // 那样数字会永远停在起点（实测出现过全 0）。用 setTimeout 保证最终一定落到正确值。
+  setTimeout(() => { if(el._t === token) el.textContent = fmt(to); }, dur + 120);
   const t0 = performance.now();
   (function step(t){
+    if(el._t !== token) return;
     // 必须双向钳制：无头/虚拟时钟下 rAF 时间戳可能早于 t0，p 变负数会让插值翻转成天文数字
     let p = (t - t0) / dur;
     if(!isFinite(p)) p = 1;
@@ -863,6 +919,287 @@ const SCAN_PHASES = [
   {t:"生成 HTML / JSON 报告", meta:"reports\\", ms:300}
 ];
 
+/* ------------------------------------------------------------------ 驱动器自动检测
+   浏览器无法枚举本机盘符，所以按可信度降序探测三路，只保留「确实探测到」的盘：
+     1. drives.json         —— app\Detect-Drives.ps1 生成的真机数据（需经 HTTP 打开）
+     2. drives.sample.json  —— 随仓库附带的示例，仅在读不到真机数据时兜底
+     3. file:// 页面所在盘   —— 从 location 推断，真实但只有一个
+   三路全空则一个盘都不列（宁可空着，也不编造不存在的盘符）。
+   ------------------------------------------------------------------ */
+const DRIVE_KIND = { fixed:"固定磁盘", removable:"可移动磁盘", network:"网络驱动器", cdrom:"光驱", ram:"内存盘", unknown:"未知类型" };
+const DRIVE_FILES = ["drives.json", "drives.sample.json"];
+const DRIVE_CACHE = "sdc.drives.v1";
+const SOURCE_TEXT = {
+  inline:"实测 · drives.js（Detect-Drives.ps1）",
+  json:"实测 · drives.json（Detect-Drives.ps1）",
+  sample:"示例数据 · drives.sample.json",
+  location:"页面所在盘 · 由 file:// 路径推断",
+  cache:"上次检测结果 · 本地缓存",
+  none:"未检测到可用驱动器"
+};
+const DRV = { list:[], cur:"", source:"none", host:"", at:"", probing:true, open:false };
+
+function driveAt(letter){ return DRV.list.find(d => d.letter === letter) || null; }
+
+function normalizeDrive(raw){
+  const letter = String((raw && raw.letter) || "").toUpperCase();
+  if(!/^[A-Z]$/.test(letter)) return null;
+  const total = Number(raw.totalBytes) || 0;
+  let free = Number(raw.freeBytes) || 0;
+  if(!(total > 0)) free = 0;
+  else if(!(free > 0 && free <= total)) free = Math.round(total * 0.35);  // 只有总量时按经验值推一个可用量
+  return {
+    letter, root: letter + ":\\",
+    kind: DRIVE_KIND[raw.kind] ? raw.kind : "unknown",
+    label: String(raw.label || ""),
+    format: String(raw.format || ""),
+    totalBytes: total,
+    freeBytes: free,
+    known: total > 0
+  };
+}
+
+/* 0) 最优先：同目录的 drives.js 以 <script> 载入（普通脚本不受 CORS 限制，
+      所以直接双击打开 ui.html 时这一路依然有效；fetch 那条路则会被浏览器拒掉）。 */
+function probeInlineDrives(){
+  try{
+    const j = window.__SDC_DRIVES__;
+    if(!j || !Array.isArray(j.drives)) return null;
+    const list = j.drives.map(normalizeDrive).filter(Boolean);
+    if(!list.length) return null;
+    return { list, source: j.source === "detected" ? "inline" : "sample", host: j.host || "", at: j.generatedAt || "" };
+  }catch(e){ return null; }
+}
+
+/* 1) 真机 / 示例 JSON。file:// 下 fetch 会被 CORS 直接拒，属预期，静默跳过。 */
+async function probeDrivesFile(){
+  for(const f of DRIVE_FILES){
+    try{
+      const r = await fetch(f, { cache:"no-store" });
+      if(!r || !r.ok) continue;
+      const j = await r.json();
+      if(!j || !Array.isArray(j.drives)) continue;
+      const list = j.drives.map(normalizeDrive).filter(Boolean);
+      if(!list.length) continue;
+      return { list, source: j.source === "detected" ? "json" : "sample", host: j.host || "", at: j.generatedAt || "" };
+    }catch(e){ /* 预期内的失败：继续下一路 */ }
+  }
+  return null;
+}
+
+/* 2) file:///D:/… → D。这是页面所在盘，一定真实存在。 */
+function probeLocationDrive(){
+  try{
+    const m = /^\/([A-Za-z]):\//.exec(decodeURIComponent(location.pathname || ""));
+    if(m){
+      const d = normalizeDrive({ letter: m[1], kind:"unknown" });
+      if(d) return { list:[d], source:"location", host:"", at:"" };
+    }
+  }catch(e){}
+  return null;
+}
+
+/* 3) 本地缓存：让上次检测结果在刷新后仍然可用 */
+function readDriveCache(){
+  try{
+    const j = JSON.parse(localStorage.getItem(DRIVE_CACHE) || "null");
+    const list = ((j && j.drives) || []).map(normalizeDrive).filter(Boolean);
+    return list.length ? { list, source:"cache", host:(j.host || ""), at:(j.at || "") } : null;
+  }catch(e){ return null; }
+}
+function writeDriveCache(list){
+  try{ localStorage.setItem(DRIVE_CACHE, JSON.stringify({ drives:list, at:new Date().toLocaleString("zh-CN",{hour12:false}) })); }catch(e){}
+}
+
+/* 把探测结果落进 DRV：合并「页面所在盘」，按盘符排序去重，并选定默认盘 */
+function applyDetected(got){
+  const loc = probeLocationDrive();
+  const map = {};
+  if(got) got.list.forEach(d => { map[d.letter] = d; });
+  if(loc) loc.list.forEach(d => { if(!map[d.letter]) map[d.letter] = d; });   // 页面所在盘必然存在
+
+  DRV.list = Object.keys(map).sort().map(k => map[k]);
+  DRV.source = got ? got.source : (DRV.list.length ? "location" : "none");
+  DRV.host = got ? (got.host || "") : "";
+  DRV.at = got ? (got.at || "") : "";
+  DRV.probing = false;
+
+  if(DRV.list.length){
+    writeDriveCache(DRV.list);
+    if(!driveAt(DRV.cur)){
+      // 默认选 D（本项目定位就是清 D 盘），没有 D 就选第一个固定磁盘，再退到第一个
+      const fixed = DRV.list.filter(d => d.kind === "fixed");
+      DRV.cur = driveAt("D") ? "D" : (fixed.length ? fixed[0].letter : DRV.list[0].letter);
+    }
+  } else {
+    DRV.cur = "";
+  }
+  renderDrivePicker();
+  return DRV.list;
+}
+
+/* 同步可确定的三路：同目录 drives.js / file:// 页面所在盘 / 本地缓存。
+   首帧就能列出盘符，不依赖 fetch 的异步返回。 */
+function pickDrivesSync(){
+  let got = probeInlineDrives();
+  if(!got) got = probeLocationDrive();
+  if(!got) got = readDriveCache();
+  return got;
+}
+
+/* 异步补全：主要是 fetch(drives.json) 这一路（需要 HTTP 服务） */
+async function detectDrives(showBusy){
+  if(showBusy){ DRV.probing = true; renderDrivePicker(); }
+  let got = pickDrivesSync();
+  if(!got) got = await probeDrivesFile();
+  return applyDetected(got);
+}
+
+/* 自动扫描只排一次：同步探测与异步补全都会调它，避免重复扫描 */
+let autoScanStarted = false;
+function maybeAutoScan(){
+  if(autoScanStarted || !DRV.cur || S.scanned || S.scanning) return;
+  autoScanStarted = true;
+  setTimeout(runScan, 520);   // 打开即自动做一次只读扫描，展示完整流程
+}
+
+/* 手动重新检测（选择器按钮 / 空状态按钮共用） */
+function redetect(){
+  return detectDrives(true).then(n => {
+    applyDrive();
+    updateScanAvailability();
+    refreshAll();
+    maybeAutoScan();
+    toast(n.length ? ("已检测到 " + n.length + " 个驱动器") : "仍未检测到可用驱动器", n.length ? "ok" : "warn");
+    return n;
+  });
+}
+
+/* ---------- 选择器渲染 ---------- */
+function renderDrivePicker(){
+  const btn = document.getElementById("dpickBtn");
+  const lab = document.getElementById("dpickLabel");
+  const pop = document.getElementById("dpickPop");
+  if(!btn || !pop) return;
+
+  const cur = driveAt(DRV.cur);
+  btn.disabled = DRV.probing || !DRV.list.length;
+  if(DRV.probing)      lab.innerHTML = '<span class="kind">正在检测驱动器…</span>';
+  else if(cur)         lab.innerHTML = '<b>'+esc(cur.letter)+':\\</b><span class="kind">'+esc(DRIVE_KIND[cur.kind])+'</span>';
+  else                 lab.innerHTML = '<span class="kind">未检测到可用驱动器</span>';
+
+  const title = DRV.probing ? "正在检测…"
+              : (DRV.list.length ? ('自动检测到 '+DRV.list.length+' 个驱动器') : "未检测到可用驱动器");
+  const sub = esc(SOURCE_TEXT[DRV.source] || SOURCE_TEXT.none)
+            + (DRV.at ? ' · '+esc(DRV.at) : '')
+            + (DRV.host && DRV.source === "json" ? ' · '+esc(DRV.host) : '');
+
+  const head = '<div class="dpick-hd"><div class="t">'+esc(title)+'<small>'+sub+'</small></div>'+
+    '<button class="btn btn-ghost btn-sm" id="dpickRescan">重新检测</button></div>';
+
+  let body;
+  if(DRV.probing){
+    body = '<div class="dpick-list"><div style="padding:20px 14px;color:var(--muted);font-size:12.5px">正在读取本机驱动器…</div></div>';
+  } else if(!DRV.list.length){
+    body = '<div class="dpick-list"><div style="padding:18px 14px;color:var(--muted);font-size:12.5px;line-height:1.75">'+
+      '没有检测到任何可用驱动器，因此不列出任何盘符。<br>'+
+      '· 直接双击打开本页时，只能推断出<b>页面所在盘</b>一个；<br>'+
+      '· 要拿到完整列表，先运行 <span style="font-family:var(--mono);font-size:11.5px">app\\Detect-Drives.ps1</span>，'+
+      '它会生成同目录的 drives.js / drives.json（含盘符、类型与容量）。'+
+      '</div></div>';
+  } else {
+    body = '<div class="dpick-list">'+DRV.list.map(d => {
+      const on = d.letter === DRV.cur;
+      const cap = d.known
+        ? ('可用 ' + fmtSize(d.freeBytes) + ' / ' + fmtSize(d.totalBytes))
+        : '容量未知';
+      const extra = [d.label, d.format].filter(Boolean).map(esc).join(' · ');
+      return '<button class="ditem '+(on?"on":"")+'" data-drive="'+d.letter+'" aria-selected="'+on+'">'+
+        '<span class="ditem-ic">'+ic("drive",15,1.9)+'</span>'+
+        '<span class="ditem-bd">'+
+          '<span class="ditem-l"><b>'+esc(d.letter)+':\\</b><span class="tag">'+esc(DRIVE_KIND[d.kind])+'</span>'+
+            (d.known ? '' : '<span class="tag">容量未知</span>')+'</span>'+
+          '<span class="ditem-m">'+esc(cap)+(extra ? ' · '+extra : '')+'</span>'+
+        '</span>'+
+        '<span class="ditem-ck">'+ic("check",15,2.6)+'</span>'+
+      '</button>';
+    }).join('')+'</div>';
+  }
+
+  pop.innerHTML = head + body +
+    '<div class="dpick-ft"><b>只列出真实检测到的盘。</b>不存在的盘符、空光驱、未插卡的读卡器都不会出现在这里。</div>';
+
+  const rs = document.getElementById("dpickRescan");
+  if(rs) rs.addEventListener("click", e => { e.stopPropagation(); redetect(); });
+  pop.querySelectorAll("[data-drive]").forEach(b => b.addEventListener("click", e => {
+    e.stopPropagation();
+    selectDrive(b.getAttribute("data-drive"));
+  }));
+}
+
+function openDrivePop(){
+  if(DRV.probing || !DRV.list.length) return;
+  DRV.open = true;
+  document.getElementById("dpickPop").hidden = false;
+  document.getElementById("dpickBtn").setAttribute("aria-expanded","true");
+}
+function closeDrivePop(){
+  DRV.open = false;
+  const p = document.getElementById("dpickPop");
+  if(p) p.hidden = true;
+  const b = document.getElementById("dpickBtn");
+  if(b) b.setAttribute("aria-expanded","false");
+}
+
+function selectDrive(letter){
+  closeDrivePop();
+  if(!driveAt(letter) || letter === DRV.cur) return;
+  DRV.cur = letter;
+  // 换盘等同回到未扫描状态：旧盘的候选、快照、清理记录都不再适用，必须一并清掉，
+  // 否则主区显示「还没有扫描结果」而侧栏徽标仍挂着旧盘的数字。
+  S.scanned = false; S.scanning = false;
+  S.selected.clear();
+  S.candidates = [];
+  S.cleaned = [];
+  S.cleanedPaths = new Set();
+  S.scanSnapshot = null;
+  renderDrivePicker();        // 按钮文案与弹层选中态都要跟着换
+  applyDrive();
+  updateScanAvailability();
+  refreshAll();
+  const d = driveAt(letter);
+  toast("已切换到 "+letter+":\\ · "+DRIVE_KIND[(d ? d.kind : "unknown")]+" · 需重新扫描", "ok");
+}
+
+/* 把状态对象里的磁盘容量对齐到当前选中的盘 */
+function applyDrive(){
+  const d = driveAt(DRV.cur);
+  const totalGB = (d && d.known) ? d.totalBytes / GB : 0;
+  S.driveTotalGB = totalGB;
+  S.driveUsedGB = (d && d.known) ? (d.totalBytes - d.freeBytes) / GB : 0;
+  const lbl = document.getElementById("sf-drive");
+  if(lbl) lbl.textContent = DRV.cur ? DRV.cur + ":\\" : "—";
+  updDrive();
+}
+
+function updateScanAvailability(){
+  const has = !!DRV.cur;
+  const btn = document.getElementById("btn-scan");
+  const rep = document.getElementById("btn-report");
+  if(btn){ btn.disabled = !has || S.scanning; }
+  if(rep){ rep.disabled = !has; }
+  const lab = document.getElementById("scan-label");
+  if(lab) lab.textContent = has ? (S.scanned ? "重新扫描" : "开始扫描") : "无可用驱动器";
+  const ab = document.getElementById("actionbar");
+  if(ab && !has) ab.hidden = true;
+}
+
+/* 展示用：把候选路径的盘符换成当前选中的盘（内部仍以 D: 作为稳定标识） */
+function dp(p){
+  if(!DRV.cur || !p || p.length < 2 || p[1] !== ":") return p;
+  return DRV.cur + p.slice(1);
+}
+
 /* ------------------------------------------------------------------ 状态 */
 const S = {
   scanned:false, scanning:false,
@@ -876,7 +1213,7 @@ const S = {
   dryRun:false,
   elapsed:0,
   indexDirs:0, indexFiles:0, pruned:0,
-  driveUsedGB:612
+  driveTotalGB:0, driveUsedGB:0     // 由 applyDrive() 按检测到的真实容量填充
 };
 const VIEWS = {
   candidates:{h:"候选清单", s:"白名单驱动的磁盘安全清理 · 默认只读扫描 · 四道保护拦截 · 绝不跟随目录联接", bar:true},
@@ -901,6 +1238,7 @@ function renderScanning(){
 }
 function runScan(){
   if(S.scanning) return;
+  if(!DRV.cur){ toast("没有检测到可用驱动器，无法扫描", "warn"); return; }
   S.scanning = true;
   document.getElementById("scan-label").textContent = "扫描中…";
   document.getElementById("btn-scan").disabled = true;
@@ -941,9 +1279,11 @@ function finishScan(){
   S.scanSnapshot = makeSnapshot();
   document.getElementById("scan-label").textContent = "重新扫描";
   document.getElementById("btn-scan").disabled = false;
+  updateScanAvailability();
 
   setTimeout(() => {
     updStats();
+    updDrive();   // 侧栏「可清理占本盘」要随扫描结果刷新
     renderCandidates();
     updNavBadges();
     toast("扫描完成 · 索引 "+fmtNum(S.indexDirs)+" 目录 / "+fmtNum(S.indexFiles)+" 文件 · 用时 "+S.elapsed.toFixed(1)+" 秒", "ok");
@@ -971,7 +1311,7 @@ function makeSnapshot(){
 }
 
 /* ------------------------------------------------------------------ 渲染：候选清单 */
-function currentDrive(){ return document.getElementById("drive").value; }
+function currentDrive(){ return DRV.cur; }
 function sortedCandidates(){
   const arr = S.candidates.filter(c => S.filter==="全部分类" || c.category===S.filter);
   const k = S.sort.key, d = S.sort.dir;
@@ -985,6 +1325,18 @@ function sortedCandidates(){
 function renderCandidates(){
   const host = document.getElementById("cand-stage");
   if(!S.scanned){
+    if(!DRV.cur){
+      host.innerHTML = '<div class="card"><div class="empty">'+
+        '<div class="empty-ic">'+ic("drive",24,1.7)+'</div>'+
+        '<h3>没有检测到可用驱动器</h3>'+
+        '<p>上方只列出<b>真实检测到的盘</b>，当前一个都没探测到，因此没有可扫描的目标。<br>'+
+        '直接双击打开本页时只能推断出页面所在盘；要拿到完整列表，先运行 '+
+        '<span style="font-family:var(--mono);font-size:12px">app\\Detect-Drives.ps1</span> 生成同目录的 drives.js / drives.json。</p>'+
+        '<button class="btn btn-ghost" onclick="redetect()" style="margin-top:16px">'+ic("play",14)+'重新检测</button>'+
+        '</div></div>';
+      updActionBar();
+      return;
+    }
     host.innerHTML = '<div class="card"><div class="empty">'+
       '<div class="empty-ic">'+ic("drive",24,1.7)+'</div>'+
       '<h3>还没有扫描结果</h3>'+
@@ -1070,7 +1422,7 @@ function th(key,label,align,width){
 }
 function rowHtml(c,i){
   const sel = S.selected.has(c.id);
-  const parts = c.path.split("\\");
+  const parts = dp(c.path).split("\\");
   const leaf = parts.pop();
   const head = parts.length ? '<i>'+esc(parts.join("\\"))+'\\</i>' : "";
   return '<tr class="'+(sel?"sel":"")+'" style="--i:'+i+'" data-row="'+c.id+'" title="'+esc(c.note)+'">'+
@@ -1089,7 +1441,14 @@ function updStats(){
   const total = S.candidates.reduce((a,c)=>a+c.bytes,0);
   const el = id => document.getElementById(id);
   if(!S.scanned){
-    ["st-total","st-cand","st-prot","st-idx","st-skip"].forEach(i => el(i).textContent = "—");
+    // 必须连同在飞的滚动动画一起作废：无头/后台标签下 rAF 可能迟迟不触发，
+    // 那些闭包里的旧值会在稍后某一帧把「—」覆盖回去（切盘时实测出现过）。
+    ["st-total","st-cand","st-prot","st-idx","st-skip"].forEach(i => {
+      const n = el(i); cancelCountUp(n); n._v = 0; n.textContent = "—";
+    });
+    el("st-total-s").textContent = "尚未扫描";
+    el("st-cand-s").textContent = "等待扫描";
+    el("st-idx-s").textContent = "目录 / 文件";
     return;
   }
   countUp(el("st-total"), total, v => fmtSize(v), 900);
@@ -1128,6 +1487,7 @@ function updActionBar(){
    否则容易漏刷某一处（侧栏徽标、统计卡片、操作栏、报告、安全防线会互相不一致）。 */
 function refreshAll(){
   updStats();
+  updDrive();            // 侧栏「可清理占本盘」随候选集变化，扫描/清理/还原后都要刷新
   updNavBadges();
   renderCandidates();   // 内部已调用 updActionBar
   renderReport();
@@ -1145,7 +1505,7 @@ function renderDefense(){
     ].join("");
     return '<div class="hit">'+
       '<div class="hit-ic '+tone+'">'+ic(h.code==="P_PATH"?"folder":"shieldOk",14,2)+'</div>'+
-      '<div class="hit-bd"><div class="hit-p">'+esc(h.path)+'</div>'+
+      '<div class="hit-bd"><div class="hit-p">'+esc(dp(h.path))+'</div>'+
       '<div class="hit-r">'+esc(h.reason)+'</div>'+
       '<div class="hit-meta">'+tags+'</div></div>'+
     '</div>';
@@ -1159,7 +1519,7 @@ function renderDefense(){
   document.getElementById("def-other").innerHTML = other.map(o =>
     '<div class="hit">'+
       '<div class="hit-ic '+o.tone+'">'+ic(o.ic,14,2)+'</div>'+
-      '<div class="hit-bd"><div class="hit-p">'+esc(o.p)+'</div>'+
+      '<div class="hit-bd"><div class="hit-p">'+esc(dp(o.p))+'</div>'+
       '<div class="hit-r">'+esc(o.r)+'</div>'+
       '<div class="hit-meta">'+o.tag+'</div></div>'+
     '</div>').join("");
@@ -1245,7 +1605,7 @@ function renderCleanDetail(){
         ? '<button class="btn btn-ghost btn-sm" data-restore="'+esc(x.id)+'" style="float:right">'+ic("restore",12)+'还原</button>'
         : '<span style="float:right;color:var(--faint);font-size:11px">—</span>';
       return '<tr style="--i:'+i+'" class="'+(x.status==="已还原"?"done":"")+'">'+
-        '<td><div class="pth">'+pathHtml(x.path)+'</div></td><td>'+catTag(x.category)+'</td>'+
+        '<td><div class="pth">'+pathHtml(dp(x.path))+'</div></td><td>'+catTag(x.category)+'</td>'+
         '<td class="r">'+fmtSize(x.bytes)+'</td><td>'+st+'</td><td>'+act+'</td></tr>';
     }).join("")+
     '</tbody></table></div></div>';
@@ -1440,28 +1800,40 @@ function restoreOne(id){
   toast("已还原「"+rec.path.split("\\").pop()+"」· 回到候选清单", "ok");
 }
 function updDrive(){
-  const used = S.driveUsedGB, total = 931, free = Math.max(0, total-used);
+  const total = S.driveTotalGB || 0;
+  const has = total > 0;
+  const used = has ? Math.max(0, Math.min(S.driveUsedGB || 0, total)) : 0;
+  const free = Math.max(0, total - used);
   const bar = document.getElementById("sf-bar");
-  document.getElementById("sf-free").textContent = "可用 " + free.toFixed(0) + " GB";
-  document.getElementById("sf-used").textContent = "已用 " + used.toFixed(0) + " GB";
-  bar.style.width = (used/total*100).toFixed(1)+"%";
-  bar.classList.toggle("warn", used/total > 0.85);
+  document.getElementById("sf-free").textContent  = has ? ("可用 " + free.toFixed(0) + " GB") : "容量未知";
+  document.getElementById("sf-used").textContent  = has ? ("已用 " + used.toFixed(0) + " GB") : "—";
+  document.getElementById("sf-total").textContent = has ? (total.toFixed(0) + " GB") : "";
+  /* 可清理占本盘容量百分比：分子与「可清理总量」卡片同源（当前候选字节和）。
+     分母无效（容量未知）或未扫描时显示占位符，不显示误导性的 0.0%。 */
+  const share = document.getElementById("sf-share");
+  if(share){
+    const cleanable = S.scanned ? S.candidates.reduce((a,c)=>a+c.bytes,0) : 0;
+    share.textContent = (has && S.scanned) ? ((cleanable/(total*GB))*100).toFixed(1) + "%" : "—";
+  }
+  bar.style.width = has ? ((used/total*100).toFixed(1) + "%") : "0%";
+  bar.classList.toggle("warn", has && used/total > 0.85);
 }
 
 /* ------------------------------------------------------------------ 绑定 */
 document.getElementById("btn-scan").addEventListener("click", runScan);
 document.getElementById("btn-report").addEventListener("click", () => { show("report"); renderReport(); });
-document.getElementById("drive").addEventListener("change", e => {
-  document.getElementById("sf-drive").textContent = e.target.value + ":\\";
-  // 换盘等同回到未扫描状态：旧盘的候选与快照不再有意义，
-  // 必须一并清掉，否则主区显示「还没有扫描结果」而侧栏徽标仍挂着旧盘的数字。
-  S.scanned = false;
-  S.selected.clear();
-  S.candidates = [];
-  S.scanSnapshot = null;
-  document.getElementById("scan-label").textContent = "开始扫描";
-  refreshAll();
+
+// 盘符选择器：按钮开合，点外部或按 Esc 关闭
+document.getElementById("dpickBtn").addEventListener("click", e => {
+  e.stopPropagation();
+  if(DRV.open) closeDrivePop(); else openDrivePop();
 });
+document.addEventListener("click", e => {
+  if(!DRV.open) return;
+  if(e.target && e.target.closest && e.target.closest(".dpick")) return;
+  closeDrivePop();
+});
+document.addEventListener("keydown", e => { if(e.key === "Escape" && DRV.open) closeDrivePop(); });
 document.getElementById("btn-all").addEventListener("click", () => { S.candidates.forEach(c=>S.selected.add(c.id)); renderCandidates(); updNavBadges(); });
 document.getElementById("btn-none").addEventListener("click", () => { S.selected.clear(); renderCandidates(); updNavBadges(); });
 document.getElementById("btn-invert").addEventListener("click", () => {
@@ -1490,14 +1862,30 @@ document.getElementById("nav").addEventListener("click", e => {
 
 /* ------------------------------------------------------------------ 启动 */
 updNavBadges();
-updDrive();
 updStats();
 renderCandidates();
 renderDefense();
 renderReport();
 renderRules();
 show("candidates");
-setTimeout(runScan, 520);   // 打开即自动做一次只读扫描，展示完整流程
+
+// 先检测盘符，再决定是否扫描：只列真实存在的盘，检测不到就一个都不列、也不扫。
+// 同步路（drives.js / file:// 推断 / 缓存）立即生效，保证首帧就有盘符；
+// 异步路（fetch drives.json）拿到结果后再刷新一次。
+(function boot(){
+  applyDetected(pickDrivesSync());
+  applyDrive();
+  updateScanAvailability();
+  refreshAll();
+  maybeAutoScan();
+
+  detectDrives().then(() => {
+    applyDrive();
+    updateScanAvailability();
+    refreshAll();
+    maybeAutoScan();
+  });
+})();
 </script>
 </body>
 </html>

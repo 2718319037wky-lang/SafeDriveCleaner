@@ -1,0 +1,47 @@
+{
+  "_comment": [
+    "示例检测结果 —— 用于界面演示，不是本机真实数据。",
+    "真机数据由 app/Detect-Drives.ps1 生成到同目录的 drives.json；",
+    "ui.html 会优先读 drives.json，读不到才退回这个示例文件。",
+    "字段与 Detect-Drives.ps1 的输出保持一致：",
+    "  letter 盘符（单字母，大写）",
+    "  root   根路径，如 D:\\",
+    "  kind   fixed 固定磁盘 / removable 可移动 / network 网络 / cdrom 光驱 / ram 内存盘",
+    "  label  卷标，可为空",
+    "  format 文件系统，可为空",
+    "  totalBytes / freeBytes 字节数；缺失时界面显示「容量未知」而不编造数字"
+  ],
+  "schemaVersion": "1.0",
+  "source": "sample",
+  "generatedAt": "2026-09-27 09:00:00",
+  "host": "SAMPLE-PC",
+  "drives": [
+    {
+      "letter": "C",
+      "root": "C:\\",
+      "kind": "fixed",
+      "label": "系统",
+      "format": "NTFS",
+      "totalBytes": 548682072064,
+      "freeBytes": 46170898432
+    },
+    {
+      "letter": "D",
+      "root": "D:\\",
+      "kind": "fixed",
+      "label": "数据与开发",
+      "format": "NTFS",
+      "totalBytes": 999653938176,
+      "freeBytes": 342523041856
+    },
+    {
+      "letter": "E",
+      "root": "E:\\",
+      "kind": "removable",
+      "label": "U-ARCHIVE",
+      "format": "exFAT",
+      "totalBytes": 127774677056,
+      "freeBytes": 62277025792
+    }
+  ]
+}

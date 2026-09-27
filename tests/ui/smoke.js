@@ -49,6 +49,22 @@ function boot(htmlPath, opts) {
   const dom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'http://localhost/' });
   const w = dom.window;
 
+  /* 驱动器检测：注入一份确定的检测结果，让断言不依赖本机真实盘符。
+     ui.html 优先读 window.__SDC_DRIVES__（对应真实的 app/drives.js）。
+     传 opts.drives === null 可模拟「三路探测全部失败」。 */
+  w.__SDC_DRIVES__ = (opts.drives === null) ? undefined : (opts.drives || {
+    schemaVersion: '1.0', source: 'detected', generatedAt: '2026-01-01 00:00:00', host: 'TEST-PC',
+    drives: [
+      { letter: 'C', root: 'C:\\', kind: 'fixed', label: '系统', format: 'NTFS', totalBytes: 512 * 1073741824, freeBytes: 64 * 1073741824 },
+      { letter: 'D', root: 'D:\\', kind: 'fixed', label: '数据', format: 'NTFS', totalBytes: 931 * 1073741824, freeBytes: 319 * 1073741824 },
+      { letter: 'E', root: 'E:\\', kind: 'removable', label: 'U盘', format: 'exFAT', totalBytes: 119 * 1073741824, freeBytes: 58 * 1073741824 }
+    ]
+  });
+
+  /* jsdom 不提供 fetch。给一个必定失败的桩：injected 数据已经命中，
+     走的正是「同目录 drives.js 已提供、无需联网」这条真实路径。 */
+  w.fetch = function () { return Promise.reject(new Error('no network in smoke test')); };
+
   /* reduce-motion 打开：countUp 直接落值、doClean 的等待归零 —— 让断言确定性优先。
      动画与视觉状态由 tools/ 下的无头截图验证覆盖。 */
   const reduce = opts.reduceMotion !== false;
@@ -81,6 +97,9 @@ function boot(htmlPath, opts) {
     ' S:S, RULES:RULES, RULE_BY_ID:RULE_BY_ID, ALL_CANDIDATES:ALL_CANDIDATES,',
     ' PROT_HITS:PROT_HITS, LINK_SKIPS:LINK_SKIPS, TOO_NEW:TOO_NEW, TRUNCATED:TRUNCATED,',
     ' VIEWS:VIEWS, fmtSize:fmtSize, fmtNum:fmtNum,',
+    ' DRV:DRV, DRIVE_KIND:DRIVE_KIND, driveAt:driveAt, selectDrive:selectDrive, dp:dp,',
+    ' detectDrives:detectDrives, renderDrivePicker:renderDrivePicker, applyDrive:applyDrive,',
+    ' openDrivePop:openDrivePop, closeDrivePop:closeDrivePop,',
     ' runScan:runScan, finishScan:finishScan, rebuildCandidates:rebuildCandidates,',
     ' makeSnapshot:makeSnapshot, doClean:doClean, restoreOne:restoreOne,',
     ' openConfirm:openConfirm, closeModal:closeModal, show:show,',
@@ -399,7 +418,6 @@ if (r.bootError || !r.probe) {
 /* ================================================================== C：换盘重置 */
 {
   const rc = boot(HTML);
-  const wc = rc.w;
   const docc = rc.doc;
   const Pc = rc.probe;
   ok('T82 第三个实例无求值期异常', !rc.bootError, rc.bootError && String(rc.bootError.message));
@@ -408,8 +426,7 @@ if (r.bootError || !r.probe) {
     const Sc = Pc.S;
     ok('T83 扫描完成后按钮文案变为「重新扫描」', text(docc, 'scan-label') === '重新扫描', text(docc, 'scan-label'));
     const before = Sc.candidates.length;
-    docc.getElementById('drive').value = 'C';
-    fire(wc, docc.getElementById('drive'), 'change');
+    Pc.selectDrive('C');
     ok('T84 切换盘符后扫描态重置、候选清空、选中清空',
       Sc.scanned === false && Sc.candidates.length === 0 && Sc.selected.size === 0,
       { scanned: Sc.scanned, cand: Sc.candidates.length, scannedBefore: before });
@@ -422,6 +439,14 @@ if (r.bootError || !r.probe) {
     ok('T89 切换盘符后按钮文案回到「开始扫描」', text(docc, 'scan-label') === '开始扫描', text(docc, 'scan-label'));
     ok('T90 切换盘符后操作栏隐藏', docc.getElementById('actionbar').hidden === true);
     ok('T91 切换盘符后统计卡片回到占位符', text(docc, 'st-total') === '—' && text(docc, 'st-cand') === '—');
+    ok('T91b 换盘后清理记录与已处理集合一并清空（旧盘数据不串台）',
+      Sc.cleaned.length === 0 && Sc.cleanedPaths.size === 0,
+      { cleaned: Sc.cleaned.length, cleanedPaths: Sc.cleanedPaths.size });
+    ok('T91c 换盘后侧栏盘符与容量跟随新盘（C 盘 512 GB）',
+      text(docc, 'sf-drive') === 'C:\\' && text(docc, 'sf-total') === '512 GB',
+      { drive: text(docc, 'sf-drive'), total: text(docc, 'sf-total') });
+    ok('T91d 选择器按钮文案跟随所选盘',
+      inner(docc, 'dpickLabel').indexOf('C:\\') >= 0, inner(docc, 'dpickLabel'));
 
     /* 反空转对照：重置状态不能把「重新扫描」这条主线弄坏 */
     Pc.runScan();
@@ -433,6 +458,109 @@ if (r.bootError || !r.probe) {
       text(docc, 'nb-cand') === String(Sc.candidates.length),
       { badge: text(docc, 'nb-cand'), cand: Sc.candidates.length });
     ok('T94 重新扫描后快照重建', !!Sc.scanSnapshot && Sc.scanSnapshot.count === Sc.candidates.length);
+    ok('T94b 候选路径盘符跟随所选盘（C:）',
+      docc.querySelector('#tbody tr .pth').textContent.indexOf('C:\\') === 0,
+      docc.querySelector('#tbody tr .pth').textContent);
+  }
+}
+
+/* ================================================================== D：驱动器自动检测 */
+{
+  const rd = boot(HTML);
+  const docd = rd.doc;
+  const Pd = rd.probe;
+  ok('T95 第四个实例无求值期异常', !rd.bootError, rd.bootError && String(rd.bootError.message));
+  if (Pd) {
+    const D = Pd.DRV;
+    ok('T96 只列出真实检测到的盘（C/D/E 三个）',
+      D.list.length === 3 && D.list.map(function (x) { return x.letter; }).join(',') === 'C,D,E',
+      D.list.map(function (x) { return x.letter; }));
+    ok('T97 盘符类型识别正确（C/D 固定、E 可移动）',
+      Pd.driveAt('C').kind === 'fixed' && Pd.driveAt('D').kind === 'fixed' && Pd.driveAt('E').kind === 'removable',
+      [Pd.driveAt('C').kind, Pd.driveAt('D').kind, Pd.driveAt('E').kind]);
+    ok('T98 默认选中 D（有 D 就选 D）', D.cur === 'D', D.cur);
+    ok('T99 来源标记为实测（drives.js / __SDC_DRIVES__）', D.source === 'inline', D.source);
+    ok('T100 选择器按钮显示盘符与类型',
+      inner(docd, 'dpickLabel').indexOf('D:\\') >= 0 && inner(docd, 'dpickLabel').indexOf('固定磁盘') >= 0,
+      inner(docd, 'dpickLabel'));
+    ok('T101 侧栏容量取自检测结果（D 盘 931 GB）', text(docd, 'sf-total') === '931 GB', text(docd, 'sf-total'));
+    ok('T102 检测结果写入 localStorage 缓存', !!rd.w.localStorage.getItem('sdc.drives.v1'));
+    ok('T103 有可用盘时排期一次自动扫描（无需联网）',
+      rd.timers.length === 1 && rd.timers[0].ms === 520,
+      rd.timers.map(function (t) { return t.ms; }));
+
+    Pd.openDrivePop();
+    ok('T104 打开弹层后列出全部检测到的盘',
+      docd.querySelectorAll('#dpickPop .ditem').length === 3,
+      docd.querySelectorAll('#dpickPop .ditem').length);
+    ok('T105 弹层中当前盘带选中标记',
+      docd.querySelectorAll('#dpickPop .ditem.on').length === 1 &&
+      docd.querySelector('#dpickPop .ditem.on').getAttribute('data-drive') === 'D');
+    ok('T106 弹层标题说明检测到的数量', inner(docd, 'dpickPop').indexOf('自动检测到 3 个驱动器') >= 0);
+    ok('T107 弹层尾部说明「只列出真实检测到的盘」',
+      inner(docd, 'dpickPop').indexOf('只列出真实检测到的盘') >= 0);
+    Pd.closeDrivePop();
+    ok('T108 关闭弹层', docd.getElementById('dpickPop').hidden === true);
+  }
+}
+
+/* ================================================================== E：三路探测全空 */
+{
+  const re2 = boot(HTML, { drives: null });
+  const doce = re2.doc;
+  const Pe = re2.probe;
+  ok('T109 第五个实例无求值期异常', !re2.bootError, re2.bootError && String(re2.bootError.message));
+  if (Pe) {
+    ok('T110 探测不到任何盘时一个都不列（宁可空着也不编造）',
+      Pe.DRV.list.length === 0 && Pe.DRV.cur === '',
+      { n: Pe.DRV.list.length, cur: Pe.DRV.cur });
+    ok('T111 无盘时选择器禁用且提示「未检测到可用驱动器」',
+      doce.getElementById('dpickBtn').disabled === true &&
+      inner(doce, 'dpickLabel').indexOf('未检测到可用驱动器') >= 0,
+      inner(doce, 'dpickLabel'));
+    ok('T112 无盘时扫描按钮禁用、文案为「无可用驱动器」',
+      doce.getElementById('btn-scan').disabled === true && text(doce, 'scan-label') === '无可用驱动器',
+      { disabled: doce.getElementById('btn-scan').disabled, label: text(doce, 'scan-label') });
+    ok('T113 无盘时不排自动扫描',
+      re2.timers.filter(function (t) { return t.ms === 520; }).length === 0,
+      re2.timers.map(function (t) { return t.ms; }));
+    ok('T114 无盘时主区给出说明性空态',
+      inner(doce, 'cand-stage').indexOf('没有检测到可用驱动器') >= 0);
+    Pe.runScan();
+    ok('T115 无盘时 runScan 被拒绝，不进入扫描态',
+      Pe.S.scanning === false && Pe.S.scanned === false,
+      { scanning: Pe.S.scanning, scanned: Pe.S.scanned });
+  }
+}
+
+/* ================================================================== F：可清理占比（sf-share） */
+{
+  const rf = boot(HTML);
+  const docf = rf.doc;
+  const Pf = rf.probe;
+  ok('T116 第六个实例无求值期异常', !rf.bootError, rf.bootError && String(rf.bootError.message));
+  if (Pf) {
+    const Sf = Pf.S;
+    ok('T117 未扫描时占比显示占位符（不显示误导性的 0.0%）',
+      text(docf, 'sf-share') === '—', text(docf, 'sf-share'));
+    Pf.runScan();
+    rf.flush();
+    const gb = 1024 * 1024 * 1024;
+    const shareOf = function () {
+      const bytes = Sf.candidates.reduce(function (a, c) { return a + c.bytes; }, 0);
+      return (bytes / (Sf.driveTotalGB * gb) * 100).toFixed(1) + '%';
+    };
+    ok('T118 扫描后占比 = 候选字节和 / 本盘容量（一位小数）',
+      text(docf, 'sf-share') === shareOf(),
+      { got: text(docf, 'sf-share'), want: shareOf() });
+    const sel = Sf.candidates.slice(0, 2);
+    Sf.selected.clear();
+    sel.forEach(function (c) { Sf.selected.add(c.id); });
+    Pf.doClean(sel, false, false);
+    rf.flush();
+    ok('T119 清理后占比随剩余候选下降（refreshAll → updDrive 链路通）',
+      text(docf, 'sf-share') === shareOf(),
+      { got: text(docf, 'sf-share'), want: shareOf(), removed: sel.length });
   }
 }
 

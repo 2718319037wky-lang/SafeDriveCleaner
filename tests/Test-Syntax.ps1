@@ -23,9 +23,9 @@ function Test-IsGeneratedArtifact {
     return ($FullName -like '*\.sandbox\*' -or
         $FullName -like '*\.reports\*' -or
         $FullName -like '*\sandbox-expectations.json' -or
-        # 打包产物：tools\make_dist.ps1 拷出的副本，已 gitignore；版本号 / BOM / JSON 内容
-        # 与源码完全一致，递归扫描会把版本号唯一性检查误判为多处。
-        $FullName -like '*\dist\stage-*' -or
+        # 打包产物：tools\make_dist.ps1 拷出的副本（stage-*）与 IExpress 用的 SourceFiles，
+        # 已 gitignore；版本号 / BOM / JSON 内容与源码完全一致，递归扫描会把版本号唯一性检查误判为多处。
+        $FullName -like '*\dist\*' -or
         # 驱动器检测产物：由 app\Detect-Drives.ps1 按本机实际情况生成，已 gitignore，
         # 属于「本地生成物」，不应参与静态检查（否则有无该文件会改变检查结果）
         $FullName -like '*\app\drives.json')
