@@ -22,7 +22,13 @@ function Test-IsGeneratedArtifact {
     param([string]$FullName)
     return ($FullName -like '*\.sandbox\*' -or
         $FullName -like '*\.reports\*' -or
-        $FullName -like '*\sandbox-expectations.json')
+        $FullName -like '*\sandbox-expectations.json' -or
+        # 打包产物：tools\make_dist.ps1 拷出的副本，已 gitignore；版本号 / BOM / JSON 内容
+        # 与源码完全一致，递归扫描会把版本号唯一性检查误判为多处。
+        $FullName -like '*\dist\stage-*' -or
+        # 驱动器检测产物：由 app\Detect-Drives.ps1 按本机实际情况生成，已 gitignore，
+        # 属于「本地生成物」，不应参与静态检查（否则有无该文件会改变检查结果）
+        $FullName -like '*\app\drives.json')
 }
 
 $psFiles = @(Get-ChildItem -Path $root -Recurse -File -Filter '*.ps1' -ErrorAction SilentlyContinue |
@@ -106,6 +112,34 @@ else {
     foreach ($h in $versionHits) { Write-Host ('         ' + $h) -ForegroundColor Red }
     if ($versionHits.Count -eq 0) {
         Write-Host '         提示：请确认 src\Common.ps1 里的 $script:CleanerVersion 未被删除或改写成计算式。' -ForegroundColor Red
+    }
+}
+
+Write-Host ''
+Write-Host '=== 界面版本号与引擎一致 ===' -ForegroundColor Cyan
+Write-Host '  说明：ui.html 侧栏标注的版本必须与 src\Common.ps1 一致。' -ForegroundColor DarkGray
+Write-Host '        单来源只覆盖了 .ps1，界面里的字面量仍需单独盯住，否则又会悄悄漂移。' -ForegroundColor DarkGray
+
+$uiHtml = Join-Path $root 'app\ui.html'
+if (-not (Test-Path -LiteralPath $uiHtml)) {
+    Write-Host '  [SKIP] 未找到 app\ui.html' -ForegroundColor DarkGray
+}
+else {
+    $uiText = [System.IO.File]::ReadAllText($uiHtml, [System.Text.Encoding]::UTF8)
+    $uiVer = [regex]::Match($uiText, '白名单引擎\s*·\s*v(\d+\.\d+\.\d+)')
+    $engineVer = ''
+    if ($versionHits.Count -eq 1) { $engineVer = ($versionHits[0] -split '= ')[1].Trim() }
+
+    if (-not $uiVer.Success) {
+        $script:Err++
+        Write-Host '  [FAIL] app\ui.html 未找到版本标注（期望「白名单引擎 · vX.Y.Z」）' -ForegroundColor Red
+    }
+    elseif ($engineVer -and $uiVer.Groups[1].Value -ne $engineVer) {
+        $script:Err++
+        Write-Host ('  [FAIL] 界面标注 v' + $uiVer.Groups[1].Value + ' 与引擎 v' + $engineVer + ' 不一致') -ForegroundColor Red
+    }
+    else {
+        Write-Host ('  [ OK ] 界面与引擎版本一致：v' + $uiVer.Groups[1].Value) -ForegroundColor Green
     }
 }
 

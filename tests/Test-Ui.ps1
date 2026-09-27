@@ -61,10 +61,16 @@ if (-not (Test-Path -LiteralPath $smoke)) {
 }
 
 # jsdom 从 smoke.js 所在目录逐级向上解析，所以要保证工作目录落在仓库内
+# 注意：L26 的 $ErrorActionPreference='Stop' 会让 node 的 stderr（非零退出）触发
+# NativeCommandError 终止整个脚本，根本走不到下面的 SKIP 分支。这里必须临时切到
+# 'Continue'，让 jsdom 缺失走 SKIP 而不是 exit 1（jsdom 是可选依赖，缺它不算测试失败）。
 Push-Location $root
 try {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $probeOut = & $node -e "require.resolve('jsdom')" 2>&1 | Out-String
     $hasJsdom = ($LASTEXITCODE -eq 0)
+    $ErrorActionPreference = $prevEAP
 }
 finally { Pop-Location }
 

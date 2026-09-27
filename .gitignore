@@ -1,5 +1,6 @@
 # 忽略产物与本地配置
 reports/
+dist/
 tests/.reports/
 tests/.sandbox/
 tests/.outside-target/
@@ -11,6 +12,11 @@ tests/sandbox-expectations.json
 
 # 本地规则覆盖（因人而异，不该提交）
 config/rules.local.json
+
+# 驱动器检测产物：含本机盘符、卷标、容量与主机名，因人而异，不该提交。
+# 由 app\Detect-Drives.ps1 生成；仓库里随附的 app\drives.sample.json 才是示例。
+app/drives.json
+app/drives.js
 
 # 日志与临时文件
 *.log
