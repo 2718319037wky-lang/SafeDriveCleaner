@@ -79,6 +79,97 @@ foreach ($f in $jsonFiles) {
 }
 
 Write-Host ''
+Write-Host '=== 版本号单一来源检查 ===' -ForegroundColor Cyan
+Write-Host '  说明：版本字面量只允许出现一次，且必须在 src\Common.ps1 里。' -ForegroundColor DarkGray
+Write-Host '        CLI 与桌面版各写一份曾导致 CLI 停在 1.0.1、桌面版已是 1.1.0。' -ForegroundColor DarkGray
+
+# 匹配「把版本号字面量赋给某个 *version* 变量」这一类写法（不含 $X = $script:CleanerVersion）
+$semverAssign = '\$[A-Za-z_:.]*[Vv]ersion[A-Za-z_]*\s*=\s*''(\d+\.\d+\.\d+)'''
+$versionHits = New-Object System.Collections.Generic.List[string]
+foreach ($f in $psFiles) {
+    $rel = $f.FullName.Substring($root.Length).TrimStart('\')
+    $lineNo = 0
+    foreach ($line in [System.IO.File]::ReadAllLines($f.FullName, [System.Text.Encoding]::UTF8)) {
+        $lineNo++
+        if ($line -match $semverAssign) {
+            $versionHits.Add($rel + ':' + $lineNo + ' = ' + $Matches[1])
+        }
+    }
+}
+
+if ($versionHits.Count -eq 1 -and $versionHits[0].StartsWith('src\Common.ps1:')) {
+    Write-Host ('  [ OK ] 版本字面量唯一：' + $versionHits[0]) -ForegroundColor Green
+}
+else {
+    $script:Err++
+    Write-Host ('  [FAIL] 版本字面量应恰好 1 处且位于 src\Common.ps1，实际 ' + $versionHits.Count + ' 处：') -ForegroundColor Red
+    foreach ($h in $versionHits) { Write-Host ('         ' + $h) -ForegroundColor Red }
+    if ($versionHits.Count -eq 0) {
+        Write-Host '         提示：请确认 src\Common.ps1 里的 $script:CleanerVersion 未被删除或改写成计算式。' -ForegroundColor Red
+    }
+}
+
+Write-Host ''
+Write-Host '=== 内联 JavaScript 语法检查 ===' -ForegroundColor Cyan
+Write-Host '  说明：界面原型 app\ui.html 的交互逻辑全部写在内联 <script> 里，页面还用内联' -ForegroundColor DarkGray
+Write-Host '        onclick 引用全局函数。语法一旦写错，整页会静默失效（按钮点了没反应），' -ForegroundColor DarkGray
+Write-Host '        而 HTML 本身仍能正常打开——所以必须单独解析一次。' -ForegroundColor DarkGray
+
+function Test-RealNode {
+    param([string]$Exe)
+    try {
+        $out = & $Exe --version 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { return $false }
+        return [bool]($out -match 'v\d+\.\d+')
+    }
+    catch { return $false }
+}
+
+$node = $null
+foreach ($cand in @('node', 'nodejs')) {
+    $cmd = Get-Command $cand -ErrorAction SilentlyContinue
+    if (-not $cmd) { continue }
+    if (Test-RealNode -Exe $cmd.Source) { $node = $cmd.Source; break }
+}
+
+$htmlFiles = @(Get-ChildItem -Path $root -Recurse -File -Filter '*.html' -ErrorAction SilentlyContinue |
+        Where-Object { -not (Test-IsGeneratedArtifact $_.FullName) })
+
+if (-not $node) {
+    Write-Host '  [SKIP] 未找到可用的 Node.js，跳过内联脚本语法检查' -ForegroundColor DarkGray
+}
+else {
+    foreach ($f in $htmlFiles) {
+        $html = [System.IO.File]::ReadAllText($f.FullName, [System.Text.Encoding]::UTF8)
+        # 只检查没有 src 属性的内联脚本；带 src 的是外部文件，不属于本检查范围
+        $blocks = [regex]::Matches($html, '(?s)<script(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script>')
+        $rel = $f.FullName.Substring($root.Length).TrimStart('\')
+        if ($blocks.Count -eq 0) {
+            Write-Host ('  [ OK ] ' + $rel + '（无内联脚本）') -ForegroundColor Green
+            continue
+        }
+        for ($i = 0; $i -lt $blocks.Count; $i++) {
+            $tmp = Join-Path $env:TEMP ('sdc-inline-' + [Guid]::NewGuid().ToString('N') + '.js')
+            [System.IO.File]::WriteAllText($tmp, $blocks[$i].Groups[1].Value, (New-Object System.Text.UTF8Encoding($false)))
+            $out = & $node --check $tmp 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            [System.IO.File]::Delete($tmp)
+            $label = $rel + ' (内联脚本 #' + ($i + 1) + ')'
+            if ($code -eq 0) {
+                Write-Host ('  [ OK ] ' + $label) -ForegroundColor Green
+            }
+            else {
+                $script:Err++
+                Write-Host ('  [FAIL] ' + $label) -ForegroundColor Red
+                foreach ($line in ($out -split "`r?`n")) {
+                    if ($line.Trim()) { Write-Host ('         ' + $line.Trim()) -ForegroundColor Red }
+                }
+            }
+        }
+    }
+}
+
+Write-Host ''
 Write-Host '=== 应用图标校验 ===' -ForegroundColor Cyan
 
 $icoPath = Join-Path $root 'app\assets\app.ico'
@@ -140,7 +231,7 @@ else {
 
 Write-Host ''
 if ($script:Err -eq 0) {
-    Write-Host ('静态检查通过：' + $psFiles.Count + ' 个 ps1 + ' + $jsonFiles.Count + ' 个 json') -ForegroundColor Green
+    Write-Host ('静态检查通过：' + $psFiles.Count + ' 个 ps1 + ' + $jsonFiles.Count + ' 个 json + ' + $htmlFiles.Count + ' 个 html') -ForegroundColor Green
     exit 0
 }
 Write-Host ('静态检查失败：' + $script:Err + ' 处问题') -ForegroundColor Red

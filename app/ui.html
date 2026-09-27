@@ -212,7 +212,7 @@ select.field{padding-right:26px;appearance:none;
 
 /* 表格 */
 .tbl-wrap{overflow-x:auto}
-table.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed}
 .tbl thead th{
   position:sticky;top:0;z-index:1;
   background:var(--sub);border-bottom:1px solid var(--border);
@@ -235,7 +235,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 .tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
 .pth{
   font-family:var(--mono);font-size:11.5px;color:var(--text);
-  max-width:1px;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .pth b{font-weight:600}
 .pth i{color:var(--faint);font-style:normal}
@@ -517,7 +517,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
     <div class="side-foot">
       <div class="drive-row"><b id="sf-drive">D:\</b><span id="sf-free">可用 319 GB</span></div>
       <div class="drive-bar"><i id="sf-bar" style="width:65.7%"></i></div>
-      <div class="drive-row" style="font-size:11px;color:var(--faint)"><span>已用 612 GB</span><span>931 GB</span></div>
+      <div class="drive-row" style="font-size:11px;color:var(--faint)"><span id="sf-used">已用 612 GB</span><span>931 GB</span></div>
     </div>
   </aside>
 
@@ -756,13 +756,19 @@ function riskTag(r){ return '<span class="risk '+r+'"><i></i>'+RISK_TXT[r]+'</sp
 function countUp(el, to, fmt, dur){
   if(!el) return;
   dur = dur || 850;
-  if(RM){ el.textContent = fmt(to); return; }
-  const from = 0, t0 = performance.now();
+  // 从「当前显示值」继续滚动，而不是每次从 0 重来（切换规则时数字不会跳变）
+  const from = (typeof el._v === "number" && isFinite(el._v)) ? el._v : 0;
+  el._v = to;
+  if(RM || from === to){ el.textContent = fmt(to); return; }
+  const t0 = performance.now();
   (function step(t){
-    const p = Math.min(1, (t-t0)/dur);
+    // 必须双向钳制：无头/虚拟时钟下 rAF 时间戳可能早于 t0，p 变负数会让插值翻转成天文数字
+    let p = (t - t0) / dur;
+    if(!isFinite(p)) p = 1;
+    p = Math.max(0, Math.min(1, p));
     const e = 1-Math.pow(1-p, 3);
-    el.textContent = fmt(from + (to-from)*e);
-    if(p<1) requestAnimationFrame(step);
+    el.textContent = p >= 1 ? fmt(to) : fmt(from + (to-from)*e);
+    if(p < 1) requestAnimationFrame(step);
   })(performance.now());
 }
 
@@ -932,6 +938,7 @@ function finishScan(){
   S.elapsed = 12.4 + Math.random()*4;
   S.indexDirs = 48213; S.indexFiles = 412806; S.pruned = 174;
   rebuildCandidates();
+  S.scanSnapshot = makeSnapshot();
   document.getElementById("scan-label").textContent = "重新扫描";
   document.getElementById("btn-scan").disabled = false;
 
@@ -943,10 +950,24 @@ function finishScan(){
   }, 320);
 }
 
-/* 依据规则开关重建候选集 */
+/* 依据规则开关重建候选集（已处理过的路径不再复活） */
 function rebuildCandidates(){
-  S.candidates = ALL_CANDIDATES.filter(c => RULE_BY_ID[c.ruleId].enabled)
+  S.candidates = ALL_CANDIDATES
+    .filter(c => RULE_BY_ID[c.ruleId].enabled && !S.cleanedPaths.has(c.path))
     .map(c => Object.assign({}, c));
+}
+/* 扫描快照：报告以扫描瞬间的状态为准，不随清理而变空 */
+function makeSnapshot(){
+  const byCat = {};
+  S.candidates.forEach(c => { (byCat[c.category] = byCat[c.category] || {n:0,b:0}); byCat[c.category].n++; byCat[c.category].b += c.bytes; });
+  const cats = Object.keys(byCat).map(k => ({k, n:byCat[k].n, b:byCat[k].b})).sort((a,b) => b.b - a.b);
+  return {
+    cats,
+    total: cats.reduce((a,c) => a + c.b, 0),
+    count: S.candidates.length,
+    rules: RULES.filter(r => r.enabled).length,
+    at: new Date()
+  };
 }
 
 /* ------------------------------------------------------------------ 渲染：候选清单 */
@@ -974,10 +995,18 @@ function renderCandidates(){
     return;
   }
   if(S.candidates.length===0){
+    const noRule = RULES.filter(r=>r.enabled).length === 0;
+    const allDone = S.cleanedPaths.size > 0;
+    const title = noRule ? "所有规则都已停用" : (allDone ? "候选已全部处理完毕" : "未发现可清理目标");
+    const desc  = noRule
+      ? "在「白名单规则」里重新启用规则后，候选会立即回到清单。"
+      : (allDone
+        ? "本次扫描出的候选都已处理。可以点「重新扫描」或到「清理报告」里还原误删的条目。"
+        : "白名单里没有命中任何路径。这是正常结果——本工具从不「因为没被排除就删掉」。");
     host.innerHTML = '<div class="card"><div class="empty">'+
       '<div class="empty-ic">'+ic("shieldOk",24,1.7)+'</div>'+
-      '<h3>'+(ALL_CANDIDATES.length ? "所有规则都已停用" : "未发现可清理目标")+'</h3>'+
-      '<p>'+(ALL_CANDIDATES.length ? "在「白名单规则」里重新启用规则后，候选会立即回到清单。" : "白名单里没有命中任何路径。这是正常结果——本工具从不「因为没被排除就删掉」。")+'</p>'+
+      '<h3>'+esc(title)+'</h3><p>'+esc(desc)+'</p>'+
+      (allDone ? '<button class="btn btn-ghost" onclick="show(\'report\')" style="margin-top:16px">'+ic("file",14)+'查看清理报告</button>' : '')+
       '</div></div>';
     updActionBar();
     return;
@@ -1000,7 +1029,8 @@ function renderCandidates(){
     '</div>'+
     '<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
       '<th style="width:40px"><input type="checkbox" class="cb" id="cb-all" '+(allSel?"checked":"")+'></th>'+
-      th("path","路径")+th("category","分类")+th("bytes","体积","r")+th("files","文件数","r")+th("ageDays","未使用(天)","r")+th("risk","风险")+
+      th("path","路径")+th("category","分类",null,112)+th("bytes","体积","r",92)+
+      th("files","文件数","r",74)+th("ageDays","未使用(天)","r",94)+th("risk","风险",null,62)+
     '</tr></thead><tbody id="tbody">'+
     rows.map((c,i)=>rowHtml(c,i)).join("")+
     '</tbody></table></div>'+
@@ -1031,10 +1061,12 @@ function renderCandidates(){
 
   updActionBar();
 }
-function th(key,label,align){
+function th(key,label,align,width){
+  // 列宽必须显式声明：表格用了 table-layout:fixed，未声明宽度的列才会吃掉剩余空间（路径列）
   const on = S.sort.key===key;
   const mark = on ? (S.sort.dir>0?' <span style="opacity:.55">↑</span>':' <span style="opacity:.55">↓</span>') : '';
-  return '<th data-sort="'+key+'" class="'+(align||"")+'" style="cursor:pointer;user-select:none">'+esc(label)+mark+'</th>';
+  const w = width ? 'width:'+width+'px;' : '';
+  return '<th data-sort="'+key+'" class="'+(align||"")+'" style="'+w+'cursor:pointer;user-select:none">'+esc(label)+mark+'</th>';
 }
 function rowHtml(c,i){
   const sel = S.selected.has(c.id);
@@ -1078,7 +1110,8 @@ function updNavBadges(){
 }
 function updActionBar(){
   const bar = document.getElementById("actionbar");
-  bar.hidden = !(VIEWS[curView].bar && S.scanned);
+  // 只在候选视图、且确实有可操作对象时才显示底部操作栏，避免留下全是禁用按钮的空壳
+  bar.hidden = !(VIEWS[curView].bar && S.scanned && S.candidates.length > 0);
   let n=0, b=0;
   S.candidates.forEach(c => { if(S.selected.has(c.id)){ n++; b+=c.bytes; } });
   document.getElementById("sel-n").textContent = n;
@@ -1090,6 +1123,15 @@ function updActionBar(){
   document.getElementById("btn-all").disabled = !S.candidates.length;
   document.getElementById("btn-none").disabled = !S.candidates.length;
   document.getElementById("btn-invert").disabled = !S.candidates.length;
+}
+/* 统一的刷新入口：任何会改变候选集 / 清理记录的操作都必须走这里，
+   否则容易漏刷某一处（侧栏徽标、统计卡片、操作栏、报告、安全防线会互相不一致）。 */
+function refreshAll(){
+  updStats();
+  updNavBadges();
+  renderCandidates();   // 内部已调用 updActionBar
+  renderReport();
+  renderDefense();
 }
 
 /* ------------------------------------------------------------------ 渲染：安全防线 */
@@ -1132,33 +1174,33 @@ function renderReport(){
       '<p>完成一次扫描后，这里会显示扫描摘要、分类汇总与清理明细。<br>每次运行都会同时产出 HTML / JSON / 日志三份留痕。</p></div></div>';
     return;
   }
-  const byCat = {};
-  S.candidates.forEach(c => { (byCat[c.category] = byCat[c.category] || {n:0,b:0}); byCat[c.category].n++; byCat[c.category].b+=c.bytes; });
-  const catArr = Object.keys(byCat).map(k=>({k,n:byCat[k].n,b:byCat[k].b})).sort((a,b)=>b.b-a.b);
+  const snap = S.scanSnapshot || makeSnapshot();
+  const catArr = snap.cats;
   const maxB = catArr.length ? catArr[0].b : 1;
-  const totalB = catArr.reduce((a,c)=>a+c.b,0);
+  const totalB = snap.total;
   const drive = currentDrive();
 
   host.innerHTML =
   '<div class="card">'+
     '<div class="card-hd">'+ic("file",15)+'<h2>本次运行</h2><span class="sub">'+esc(drive)+':\\ · 只读扫描</span>'+
-      '<div class="grow"></div><span class="tag">'+esc(new Date().toLocaleString("zh-CN",{hour12:false}))+'</span></div>'+
+      '<div class="grow"></div><span class="tag">'+esc(snap.at.toLocaleString("zh-CN",{hour12:false}))+'</span></div>'+
     '<dl class="kv">'+
       '<dt>目标根目录</dt><dd style="font-family:var(--mono);font-size:12px">'+esc(drive)+':\\</dd>'+
       '<dt>运行模式</dt><dd>Scan（只读） · 扫描深度 '+esc(document.getElementById("depth").value)+'</dd>'+
       '<dt>索引规模</dt><dd>'+fmtNum(S.indexDirs)+' 个目录 / '+fmtNum(S.indexFiles)+' 个文件 · 遍历剪枝 '+fmtNum(S.pruned)+' 处</dd>'+
       '<dt>扫描耗时</dt><dd>'+S.elapsed.toFixed(1)+' 秒</dd>'+
-      '<dt>参与规则</dt><dd>'+RULES.filter(r=>r.enabled).length+' / '+RULES.length+' 条</dd>'+
+      '<dt>参与规则</dt><dd>'+snap.rules+' / '+RULES.length+' 条</dd>'+
       '<dt>保护拦截</dt><dd><b style="color:var(--ok)">'+PROT_HITS.length+'</b> 处（分层：目录名 '+PROT_HITS.filter(h=>h.code==="P_DIRNAME").length+' · 扩展名 '+PROT_HITS.filter(h=>h.code==="P_EXT").length+' · 路径段 '+PROT_HITS.filter(h=>h.code==="P_SEGMENT").length+' · 具体路径 '+PROT_HITS.filter(h=>h.code==="P_PATH").length+'）</dd>'+
     '</dl>'+
   '</div>'+
 
   '<div class="card">'+
-    '<div class="card-hd"><h2>分类汇总</h2><span class="sub">共 '+S.candidates.length+' 项 · 合计 '+fmtSize(totalB)+'</span></div>'+
+    '<div class="card-hd"><h2>分类汇总</h2><span class="sub">扫描时共 '+snap.count+' 项 · 合计 '+fmtSize(totalB)+'</span></div>'+
     '<div class="bars">'+
-      catArr.map(c=>'<div class="bar-row"><span>'+esc(c.k)+' <span style="color:var(--faint)">'+c.n+' 项</span></span>'+
-        '<div class="bar"><i data-w="'+Math.round(c.b/maxB*100)+'"></i></div>'+
-        '<span class="bar-am">'+fmtSize(c.b)+'</span></div>').join("")+
+      (catArr.length ? catArr.map(c=>'<div class="bar-row"><span>'+esc(c.k)+' <span style="color:var(--faint)">'+c.n+' 项</span></span>'+
+        '<div class="bar"><i style="width:'+Math.round(c.b/maxB*100)+'%"></i></div>'+
+        '<span class="bar-am">'+fmtSize(c.b)+'</span></div>').join("")
+        : '<div style="padding:4px 0;color:var(--muted);font-size:12.5px">本次扫描未命中任何白名单目标。</div>')+
     '</div>'+
   '</div>'+
 
@@ -1174,10 +1216,6 @@ function renderReport(){
       '<div>还原入口：清理完成后，在「清理明细」里可以对每一条单独执行<b>还原</b>。还原依赖 Windows 本地化的「还原」动词，存在语言环境差异；失败时请直接打开资源管理器「回收站」按文件名手动还原——报告里记录了每一条的完整原始路径。</div></div></div>'+
   '</div>';
 
-  host.querySelectorAll("i[data-w]").forEach(el => {
-    const w = el.getAttribute("data-w");
-    requestAnimationFrame(()=>{ setTimeout(()=>{ el.style.width = w+"%"; }, 30); });
-  });
   host.querySelectorAll("[data-restore]").forEach(b => b.addEventListener("click", () => restoreOne(b.getAttribute("data-restore"))));
 }
 function fileRow(kind,name,desc){
@@ -1197,7 +1235,7 @@ function renderCleanDetail(){
     '<div class="card-hd"><h2>清理明细</h2>'+
       '<span class="sub">'+(perm?"永久删除":"移入回收站（可还原）")+' · 共 '+done.length+' 条'+(del?" · 已删除 "+del: "")+(dry?" · 预演 "+dry:"")+(res?" · 已还原 "+res:"")+' · 释放 '+fmtSize(bytes)+'</span></div>'+
     '<div class="tbl-wrap"><table class="tbl"><thead><tr>'+
-      '<th>路径</th><th>分类</th><th class="r">体积</th><th>状态</th><th style="width:96px;text-align:right">操作</th>'+
+      '<th>路径</th><th style="width:112px">分类</th><th class="r" style="width:92px">体积</th><th style="width:88px">状态</th><th style="width:96px;text-align:right">操作</th>'+
     '</tr></thead><tbody>'+
     done.map((x,i)=>{
       const st = x.status==="已删除" ? '<span class="risk low"><i></i>已删除</span>'
@@ -1369,8 +1407,9 @@ function doClean(sel, perm, dry){
     })).concat(S.cleaned);
 
     if(!dry){
-      // 真删：从候选里移除
+      // 真删：从候选里移除，并登记为已处理（切规则时不会复活）
       const rm = new Set(sel.map(c=>c.id));
+      sel.forEach(c => S.cleanedPaths.add(c.path));
       S.candidates = S.candidates.filter(c => !rm.has(c.id));
       S.selected.clear();
       // 磁盘可用空间变化
@@ -1378,7 +1417,7 @@ function doClean(sel, perm, dry){
       S.driveUsedGB = Math.max(0, S.driveUsedGB - freed/GB);
       updDrive();
     }
-    updStats(); renderCandidates(); renderReport(); renderDefense();
+    refreshAll();
     toast(dry
       ? ("演练完成 · "+sel.length+" 项将被清理，合计 "+fmtSize(sel.reduce((a,c)=>a+c.bytes,0))+"（未实际删除）")
       : ("清理完成 · "+sel.length+" 项已"+(perm?"永久删除":"移入回收站")+" · 释放 "+fmtSize(sel.reduce((a,c)=>a+c.bytes,0))),
@@ -1390,21 +1429,23 @@ function restoreOne(id){
   const rec = S.cleaned.find(x=>x.id===id);
   if(!rec) return;
   rec.status = "已还原";
+  S.cleanedPaths.delete(rec.path);
   const src = ALL_CANDIDATES.find(c => c.path===rec.path);
   if(src && RULE_BY_ID[src.ruleId].enabled && !S.candidates.some(c=>c.path===rec.path)){
     S.candidates.push(Object.assign({}, src));
     S.candidates.sort((a,b)=>b.bytes-a.bytes);
   }
   S.driveUsedGB += rec.bytes/GB;
-  updDrive(); updStats(); renderCandidates(); renderReport(); renderDefense();
+  updDrive(); refreshAll();
   toast("已还原「"+rec.path.split("\\").pop()+"」· 回到候选清单", "ok");
 }
 function updDrive(){
-  const used = S.driveUsedGB, total = 931, free = total-used;
+  const used = S.driveUsedGB, total = 931, free = Math.max(0, total-used);
+  const bar = document.getElementById("sf-bar");
   document.getElementById("sf-free").textContent = "可用 " + free.toFixed(0) + " GB";
-  document.getElementById("sf-bar").style.width = (used/total*100).toFixed(1)+"%";
-  document.getElementById("sf-bar").classList.toggle("warn", used/total > 0.85);
-  document.querySelector(".side-foot .drive-row span").textContent = "已用 " + used.toFixed(0) + " GB";
+  document.getElementById("sf-used").textContent = "已用 " + used.toFixed(0) + " GB";
+  bar.style.width = (used/total*100).toFixed(1)+"%";
+  bar.classList.toggle("warn", used/total > 0.85);
 }
 
 /* ------------------------------------------------------------------ 绑定 */
@@ -1412,9 +1453,14 @@ document.getElementById("btn-scan").addEventListener("click", runScan);
 document.getElementById("btn-report").addEventListener("click", () => { show("report"); renderReport(); });
 document.getElementById("drive").addEventListener("change", e => {
   document.getElementById("sf-drive").textContent = e.target.value + ":\\";
-  S.scanned = false; S.selected.clear();
+  // 换盘等同回到未扫描状态：旧盘的候选与快照不再有意义，
+  // 必须一并清掉，否则主区显示「还没有扫描结果」而侧栏徽标仍挂着旧盘的数字。
+  S.scanned = false;
+  S.selected.clear();
+  S.candidates = [];
+  S.scanSnapshot = null;
   document.getElementById("scan-label").textContent = "开始扫描";
-  updStats(); renderCandidates(); renderReport();
+  refreshAll();
 });
 document.getElementById("btn-all").addEventListener("click", () => { S.candidates.forEach(c=>S.selected.add(c.id)); renderCandidates(); updNavBadges(); });
 document.getElementById("btn-none").addEventListener("click", () => { S.selected.clear(); renderCandidates(); updNavBadges(); });
@@ -1432,8 +1478,8 @@ document.getElementById("method").addEventListener("change", () => {
   updActionBar();
 });
 document.getElementById("btn-clean").addEventListener("click", openConfirm);
-document.getElementById("btn-rules-all").addEventListener("click", () => { RULES.forEach(r=>r.enabled=true); rebuildCandidates(); S.selected.clear(); renderRules(); updNavBadges(); updStats(); renderCandidates(); renderReport(); renderDefense(); toast("已启用全部规则", "ok"); });
-document.getElementById("btn-rules-none").addEventListener("click", () => { RULES.forEach(r=>r.enabled=false); S.candidates=[]; S.selected.clear(); renderRules(); updNavBadges(); updStats(); renderCandidates(); renderReport(); renderDefense(); toast("已停用全部规则 · 候选清单为空", "warn"); });
+document.getElementById("btn-rules-all").addEventListener("click", () => { RULES.forEach(r=>r.enabled=true); rebuildCandidates(); S.selected.clear(); renderRules(); refreshAll(); toast("已启用全部规则", "ok"); });
+document.getElementById("btn-rules-none").addEventListener("click", () => { RULES.forEach(r=>r.enabled=false); S.candidates=[]; S.selected.clear(); renderRules(); refreshAll(); toast("已停用全部规则 · 候选清单为空", "warn"); });
 document.getElementById("nav").addEventListener("click", e => {
   const b = e.target.closest(".nav-item"); if(!b) return;
   show(b.getAttribute("data-view"));

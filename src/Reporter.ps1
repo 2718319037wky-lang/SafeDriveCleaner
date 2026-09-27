@@ -13,8 +13,12 @@ function New-CleanerReportObject {
         [Parameter(Mandatory)][string]$DriveLetter,
         [Parameter(Mandatory)][string]$RootPath,
         [int]$MaxDepth,
-        [string]$Version = '1.0.0'
+        [string]$Version
     )
+
+    # 版本号单一来源（src\Common.ps1）。原先这里硬编码 '1.0.0'，
+    # 任何不显式传 -Version 的调用都会在报告里写上一个过期版本号。
+    if ([string]::IsNullOrWhiteSpace($Version)) { $Version = $script:CleanerVersion }
 
     $items = @()
     foreach ($c in $Scan.Candidates) {

@@ -248,7 +248,7 @@ function Invoke-CleanerAppTask {
 
         # ---- 报告 ----
         $report = New-CleanerReportObject -Scan $scan -Clean $clean -Mode $Mode `
-            -DriveLetter $DriveLetter -RootPath $norm -MaxDepth $MaxDepth -Version '1.1.0'
+            -DriveLetter $DriveLetter -RootPath $norm -MaxDepth $MaxDepth -Version $script:CleanerVersion
 
         $jsonPath = Join-Path $OutDir ("gui-$stamp.json")
         $htmlPath = Join-Path $OutDir ("gui-$stamp.html")

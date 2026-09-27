@@ -127,7 +127,6 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '1.0.1'
 
 # ---------------------------------------------------------------------------
 # 加载模块
@@ -138,6 +137,9 @@ foreach ($f in @('Common.ps1', 'Rules.ps1', 'Scanner.ps1', 'Cleaner.ps1', 'Repor
     if (-not (Test-Path -LiteralPath $p)) { throw "缺少模块文件: $p" }
     . $p
 }
+
+# 版本号只有 src\Common.ps1 一处字面量，这里取用而不是再写一遍
+$ScriptVersion = $script:CleanerVersion
 
 if ($Trace) { $script:CleanerDebug = $true }
 if ($Quiet) {

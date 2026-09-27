@@ -4,6 +4,11 @@
 # ============================================================================
 #Requires -Version 5.1
 
+# 版本号的**单一来源**。CLI（Clean-DDrive.ps1）、桌面应用（app\*.ps1）都从这里取，
+# 全仓库只允许出现这一处版本字面量 —— 之前 CLI 停在 1.0.1、桌面版已是 1.1.0，
+# 就是各写一份导致的漂移。tests\Test-Syntax.ps1 会断言这一点。
+$script:CleanerVersion = '1.1.1'
+
 $script:CleanerLogFile   = $null
 $script:CleanerLogWriter = $null
 $script:CleanerDebug     = $false

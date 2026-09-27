@@ -39,12 +39,30 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-Content .\tests\.transcript.txt -Encoding UTF8 | Write-Host
 
+      # ui.html 的无头验证：在 jsdom 里把内联脚本跑起来，驱动
+      # 扫描 / 选择 / 确认弹窗 / 清理 / 还原 / 规则开关，断言 94 项状态机不变量。
+      # jsdom 属可选依赖：安装失败或缺失时 Test-Ui.ps1 会以 SKIP 退出，不会让构建变红。
+      - name: 安装 jsdom（可选依赖）
+        continue-on-error: true
+        shell: powershell
+        run: npm install jsdom --no-save --loglevel=error
+
+      - name: 界面状态机验证（app/ui.html）
+        shell: powershell
+        run: |
+          .\tests\Test-Ui.ps1
+          $code = $LASTEXITCODE
+          Get-Content .\tests\.ui-smoke.txt -Encoding UTF8 | Write-Host
+          if ($code -ne 0) { exit $code }
+
       - name: 测试失败时上传 transcript
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-transcript
-          path: tests/.transcript.txt
+          path: |
+            tests/.transcript.txt
+            tests/.ui-smoke.txt
           if-no-files-found: ignore
 
   lint:

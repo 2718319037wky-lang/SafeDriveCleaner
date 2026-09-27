@@ -32,11 +32,11 @@ $ErrorActionPreference = 'Stop'
 
 $script:AppRoot = Split-Path -Parent $PSScriptRoot           # SafeDriveCleaner\
 $script:WorkerPath = Join-Path $PSScriptRoot 'Worker.ps1'
-$script:Version = '1.1.0'
 
 # 只为显示用的格式化函数（Format-Size / Get-CleanerCount），不含清理逻辑
 . (Join-Path $script:AppRoot 'src\Common.ps1')
 $script:CleanerQuiet = $true
+$script:Version = $script:CleanerVersion   # 版本号单一来源，见 src\Common.ps1
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
