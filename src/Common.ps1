@@ -7,7 +7,7 @@
 # 版本号的**单一来源**。CLI（Clean-DDrive.ps1）、桌面应用（app\*.ps1）都从这里取，
 # 全仓库只允许出现这一处版本字面量 —— 之前 CLI 停在 1.0.1、桌面版已是 1.1.0，
 # 就是各写一份导致的漂移。tests\Test-Syntax.ps1 会断言这一点。
-$script:CleanerVersion = '1.1.1'
+$script:CleanerVersion = '1.1.2'
 
 $script:CleanerLogFile   = $null
 $script:CleanerLogWriter = $null
@@ -164,6 +164,63 @@ function Format-Size {
     if ($Bytes -ge 1MB) { return ('{0:N2} MB' -f ($Bytes / 1MB)) }
     if ($Bytes -ge 1KB) { return ('{0:N2} KB' -f ($Bytes / 1KB)) }
     return ('{0} B' -f [int]$Bytes)
+}
+
+<#
+.SYNOPSIS
+    取目标路径所在卷的总容量（字节）。取不到返回 $null。
+
+.NOTES
+    用 [System.IO.DriveInfo] 而不是 Get-PSDrive / CIM：后两者对未映射的卷信息不全，
+    且在受限环境里 CIM 查询会直接失败。
+    目录不存在、卷未就绪（空光驱、未插卡的读卡器）都返回 $null ——
+    由调用方决定怎么显示，绝不在这里编一个数出来。
+#>
+function Get-CleanerVolumeTotalBytes {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    try {
+        $rootPath = [System.IO.Path]::GetPathRoot($Path)
+        if ([string]::IsNullOrWhiteSpace($rootPath)) { return $null }
+        $di = New-Object System.IO.DriveInfo -ArgumentList $rootPath
+        if (-not $di.IsReady) { return $null }
+        return [long]$di.TotalSize
+    }
+    catch { return $null }
+}
+
+<#
+.SYNOPSIS
+    Part 占 Total 的百分比（一位小数）。Total 无效（$null / 0 / 负数）时返回 $null。
+
+.NOTES
+    三处界面都要显示同一个百分比，所以口径集中在这里：统一保留一位小数。
+    不要各自 Round 各自的精度，否则报告写 4.7%、界面写 4.72%，对不上。
+#>
+function Get-CleanerSharePercent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][double]$Part,
+        [AllowNull()]$Total
+    )
+
+    if ($null -eq $Total) { return $null }
+    $t = [double]$Total
+    if ($t -le 0) { return $null }
+    return [math]::Round($Part / $t * 100, 1)
+}
+
+<#
+.SYNOPSIS
+    百分比显示，如 "4.7%"；取不到时显示 "—"。
+#>
+function Format-Percent {
+    [CmdletBinding()]
+    param([AllowNull()]$Percent)
+
+    if ($null -eq $Percent) { return '—' }
+    return ('{0:N1}%' -f [double]$Percent)
 }
 
 <#

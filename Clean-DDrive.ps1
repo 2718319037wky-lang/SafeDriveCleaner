@@ -247,7 +247,13 @@ try {
         $byCat = $byCat | Sort-Object -Property Bytes -Descending
         $byCat | Select-Object 分类, 条目, 体积 | Format-Table -AutoSize | Out-String | Write-Host
 
-        Write-CLog ("可清理总量 " + (Format-Size $totalBytes) + "，候选条目 " + @($sorted).Count + " 项") 'OK'
+        # 「可清理容量占该盘总容量」的百分比。取不到卷容量时整段省略，不编数。
+        $volShareText = ''
+        $volTotal = Get-CleanerVolumeTotalBytes -Path $root
+        if ($null -ne $volTotal) {
+            $volShareText = "，占该盘 " + (Format-Percent (Get-CleanerSharePercent -Part ([double]$totalBytes) -Total $volTotal))
+        }
+        Write-CLog ("可清理总量 " + (Format-Size $totalBytes) + "，候选条目 " + @($sorted).Count + " 项" + $volShareText) 'OK'
     }
 
     Write-CLog ("索引目录 " + $scan.IndexDirs + " 个 / 文件 " + $scan.IndexFiles + " 个；剪枝跳过 " + $scan.PrunedCount + " 处") 'INFO'

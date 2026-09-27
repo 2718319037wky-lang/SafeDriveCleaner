@@ -93,6 +93,11 @@ function New-CleanerReportObject {
     $reportKind = 'scan'
     if ($Clean) { $reportKind = 'clean' }
 
+    # 「可清理容量占该盘总容量」的百分比。
+    # 卷容量取不到时两个字段都是 $null —— 报告里显示 "—"，而不是编一个数。
+    $driveTotalBytes = Get-CleanerVolumeTotalBytes -Path $RootPath
+    $cleanablePercent = Get-CleanerSharePercent -Part ([double]$totalBytes) -Total $driveTotalBytes
+
     return [pscustomobject]@{
         Tool             = 'SafeDriveCleaner'
         Version          = $Version
@@ -111,6 +116,8 @@ function New-CleanerReportObject {
 
         CandidateCount   = $items.Count
         TotalBytes       = $totalBytes
+        DriveTotalBytes  = $driveTotalBytes
+        CleanablePercent = $cleanablePercent
         Categories       = $categories
         Items            = $items
 
@@ -239,6 +246,20 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:26px}
 
     [void]$sb.AppendLine('<div class="cards">')
     [void]$sb.AppendLine('<div class="card"><div class="k">可清理总量</div><div class="v accent">' + (ConvertTo-HtmlText (Format-Size $Report.TotalBytes)) + '</div></div>')
+
+    # 可清理容量占该盘总容量的比例。取不到卷容量时明确写「—」并说明原因，
+    # 不要静默省略这张卡 —— 否则看报告的人会以为没有这个指标。
+    if ($null -eq $Report.CleanablePercent) {
+        [void]$sb.AppendLine('<div class="card"><div class="k">占该盘容量</div><div class="v">—</div>' +
+            '<div class="note">未能读取卷总容量：目标可能是目录而非盘，或该卷未就绪</div></div>')
+    }
+    else {
+        [void]$sb.AppendLine('<div class="card"><div class="k">占该盘容量</div><div class="v accent">' +
+            (ConvertTo-HtmlText (Format-Percent $Report.CleanablePercent)) + '</div>' +
+            '<div class="note">可清理 ' + (ConvertTo-HtmlText (Format-Size $Report.TotalBytes)) +
+            ' / 该盘总容量 ' + (ConvertTo-HtmlText (Format-Size $Report.DriveTotalBytes)) + '</div></div>')
+    }
+
     [void]$sb.AppendLine('<div class="card"><div class="k">候选条目</div><div class="v">' + $Report.CandidateCount + '</div></div>')
     [void]$sb.AppendLine('<div class="card"><div class="k">分类数</div><div class="v">' + (Get-CleanerCount $Report.Categories) + '</div></div>')
     [void]$sb.AppendLine('<div class="card"><div class="k">保护规则拦截</div><div class="v ok">' + $protectCount + '</div></div>')

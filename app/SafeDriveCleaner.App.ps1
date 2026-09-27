@@ -267,11 +267,12 @@ $pnlStats.Dock = 'Fill'
 $pnlStats.BackColor = $Pal.Bg
 $stats = New-Object System.Windows.Forms.TableLayoutPanel
 $stats.Dock = 'Fill'
-$stats.ColumnCount = 5
+$stats.ColumnCount = 6
 $stats.RowCount = 1
 $stats.Padding = New-Object System.Windows.Forms.Padding(14, 6, 14, 6)
-for ($i = 0; $i -lt 5; $i++) {
-    [void]$stats.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 20)))
+# 6 张卡：可清理总量 / 占该盘容量 / 候选条目 / 保护拦截 / 索引规模 / 未使用天数过滤
+for ($i = 0; $i -lt 6; $i++) {
+    [void]$stats.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 16.67)))
 }
 $pnlStats.Controls.Add($stats)
 
@@ -299,7 +300,7 @@ function New-StatCard {
     return $p
 }
 
-$keys = @('可清理总量', '候选条目', '保护拦截', '索引规模', '未使用天数过滤')
+$keys = @('可清理总量', '占该盘容量', '候选条目', '保护拦截', '索引规模', '未使用天数过滤')
 $cards = @()
 for ($i = 0; $i -lt $keys.Count; $i++) {
     $c = New-StatCard -Key $keys[$i]
@@ -307,10 +308,11 @@ for ($i = 0; $i -lt $keys.Count; $i++) {
     [void]$stats.Controls.Add($c, $i, 0)
 }
 $script:valTotal = $cards[0].Tag
-$script:valCand = $cards[1].Tag
-$script:valProt = $cards[2].Tag
-$script:valIndex = $cards[3].Tag
-$script:valSkip = $cards[4].Tag
+$script:valShare = $cards[1].Tag
+$script:valCand = $cards[2].Tag
+$script:valProt = $cards[3].Tag
+$script:valIndex = $cards[4].Tag
+$script:valSkip = $cards[5].Tag
 [void]$root.Controls.Add($pnlStats, 0, 2)
 
 # --- 第 3 行：候选表格 ---
@@ -709,6 +711,7 @@ function Complete-Task {
         Fill-Grid -Candidates $script:Candidates -CategoryFilter ([string]$script:cboCat.SelectedItem)
 
         $script:valTotal.Text = Format-Size ([double]$res.TotalBytes)
+        $script:valShare.Text = Format-Percent $res.CleanablePercent
         $script:valCand.Text = [string]$res.CandidateCount
         $script:valProt.Text = [string](Get-CleanerCount $res.ProtectionHits)
         $script:valIndex.Text = ('' + $res.IndexDirs + ' / ' + $res.IndexFiles)
@@ -720,8 +723,13 @@ function Complete-Task {
             Set-Status ('扫描完成，' + $res.DurationSec + ' 秒。未发现符合白名单规则的可清理目标。') 'ok'
         }
         else {
+            # 卷容量取不到时不硬塞一个百分比进去，只省略这一段
+            $shareText = ''
+            if ($null -ne $res.CleanablePercent) {
+                $shareText = '（占该盘 ' + (Format-Percent $res.CleanablePercent) + '）'
+            }
             Set-Status ('扫描完成，' + $res.DurationSec + ' 秒。共 ' + $res.CandidateCount + ' 项候选，可清理 ' +
-                (Format-Size ([double]$res.TotalBytes)) + '。') 'ok'
+                (Format-Size ([double]$res.TotalBytes)) + $shareText + '。') 'ok'
         }
 
         if ($res.TruncatedCount -gt 0) {

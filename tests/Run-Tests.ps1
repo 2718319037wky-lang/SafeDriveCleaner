@@ -550,6 +550,52 @@ $emptyJson = @{ k = (ConvertTo-CleanerArray (New-Object System.Collections.Gener
 Test-Assert -Name 'T9g 空集合归一化后序列化为 []' `
     -Condition ($emptyJson -eq '{"k":[]}') -Detail ('实际 ' + $emptyJson)
 
+# 「可清理容量占该盘总容量」的百分比。
+# 沙箱位于 D: 上，所以卷容量应当能取到；断言百分比确实等于 round(可清理/卷容量*100, 1)，
+# 而不是只断言字段存在（那种断言字段恒为空也能过）。
+if ($jsonFile) {
+    $rep = Get-Content -LiteralPath $jsonFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+    $volTotal = Get-CleanerVolumeTotalBytes -Path $rep.RootPath
+    Test-Assert -Name 'T9h 报告记录了该盘总容量' `
+        -Condition ($null -ne $rep.DriveTotalBytes -and [long]$rep.DriveTotalBytes -gt 0) `
+        -Detail ('DriveTotalBytes = ' + $rep.DriveTotalBytes + '  卷探测 = ' + $volTotal)
+
+    # 独立复算（不调用被测助手），确保不是「用同一个实现算出来自己跟自己比」
+    $wantPct = [math]::Round([double]$rep.TotalBytes / [double]$rep.DriveTotalBytes * 100, 1)
+    Test-Assert -Name 'T9i 占比 = 可清理容量 / 该盘总容量（一位小数）' `
+        -Condition ($null -ne $rep.CleanablePercent -and [double]$rep.CleanablePercent -eq $wantPct) `
+        -Detail ('报告 ' + $rep.CleanablePercent + '  独立复算 ' + $wantPct)
+    Test-Assert -Name 'T9i1 记录到的卷容量是个合理的量级（1GB ~ 100TB）' `
+        -Condition ([double]$rep.DriveTotalBytes -gt 1GB -and [double]$rep.DriveTotalBytes -lt 100TB) `
+        -Detail ('DriveTotalBytes = ' + $rep.DriveTotalBytes)
+
+    # 反空转对照：占比必须随输入变化，不是写死的常量。
+    # 注意别写成「报告里的值必须 > 0」—— 沙箱跑在真实的 D: 盘上，
+    # 几 KB 的沙箱占 931 GB，四舍五入后本来就是 0.0%，那种断言是错的。
+    $pA = Get-CleanerSharePercent -Part 25 -Total 100
+    $pB = Get-CleanerSharePercent -Part 1 -Total 3
+    $pC = Get-CleanerSharePercent -Part 0 -Total 100
+    Test-Assert -Name 'T9i2 占比随输入变化（排除写死/恒定的假实现）' `
+        -Condition ($pA -eq 25 -and $pB -eq 33.3 -and $pC -eq 0) `
+        -Detail ('25/100=' + $pA + '  1/3=' + $pB + '  0/100=' + $pC)
+
+    if ($html) {
+        Test-Assert -Name 'T9j HTML 报告里有「占该盘容量」卡片，且数值与 JSON 一致' `
+            -Condition ($htmlText.Contains('占该盘容量') -and $htmlText.Contains((Format-Percent $rep.CleanablePercent))) `
+            -Detail ('找不到卡片或数值，期望 ' + (Format-Percent $rep.CleanablePercent))
+    }
+}
+
+# 卷容量取不到时的契约：返回 $null，绝不返回 0 —— 否则报告会写成「占该盘 0.0%」，
+# 看着像个正常数字，实际是没测出来。显示层统一退化为 "—"。
+Test-Assert -Name 'T9k2 卷容量无效时占比返回 $null（不出现除零或 0%）' `
+    -Condition ($null -eq (Get-CleanerSharePercent -Part 100 -Total $null) -and
+        $null -eq (Get-CleanerSharePercent -Part 100 -Total 0)) `
+    -Detail 'Total 为 $null / 0 时应返回 $null'
+Test-Assert -Name 'T9k3 Format-Percent 对 $null 显示占位符而不是 0.0%' `
+    -Condition ((Format-Percent $null) -eq '—' -and (Format-Percent 4.7) -eq '4.7%') `
+    -Detail ('null -> ' + (Format-Percent $null) + '  4.7 -> ' + (Format-Percent 4.7))
+
 # --- 收尾 -------------------------------------------------------------------
 Write-Host ''
 Write-Host '############################################################' -ForegroundColor White

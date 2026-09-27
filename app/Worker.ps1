@@ -75,6 +75,8 @@ function Invoke-CleanerAppTask {
         DurationSec     = 0
         CandidateCount  = 0
         TotalBytes      = 0
+        DriveTotalBytes = $null
+        CleanablePercent = $null
         Categories      = @()
         Candidates      = @()
         ProtectionHits  = @()
@@ -176,6 +178,12 @@ function Invoke-CleanerAppTask {
 
         $result.CandidateCount = @($candidates).Count
         $result.TotalBytes = $totalBytes
+
+        # 「可清理容量占该盘总容量」的百分比。口径与报告一致（Get-CleanerSharePercent 里统一取一位小数）。
+        # 卷容量取不到时保持 $null，界面显示 "—"，不编数。
+        $result.DriveTotalBytes = Get-CleanerVolumeTotalBytes -Path $norm
+        $result.CleanablePercent = Get-CleanerSharePercent -Part ([double]$totalBytes) -Total $result.DriveTotalBytes
+
         $result.Categories = $categories
         $result.Candidates = $candidates
         $result.ProtectionHits = ConvertTo-CleanerArray $protHits
